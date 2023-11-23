@@ -55,4 +55,8 @@ impl Datagram {
             payload: bytes[(20 + options_len)..].to_owned(),
         }
     }
+
+    fn checksum(){
+
+    }
 }
