@@ -1,6 +1,3 @@
-use std::fs::read;
-use std::io::Bytes;
-
 mod tcp;
 mod udp;
 
@@ -49,43 +46,37 @@ impl Datagram {
         }
     }
 
-    pub fn verify_checksum(bytes: &Vec<u8>) -> bool {
-        // [69, 0, 0, 60, -79, 109, 64, 0, 64, 6, 50, -37, 10, 0, 0, 2, 106, 75, -30, 38]
-        let checksum = Self::calc_checksum(bytes);
-        return if bytes[10] != 0 || bytes[11] != 0 {
+    pub fn verify_checksum(header: &Vec<u8>) -> bool {
+        let checksum = Self::calc_checksum(header);
+        return if header[10] != 0 || header[11] != 0 {
             checksum == 0
         } else {
             false
         };
     }
 
-    pub fn calc_checksum(bytes: &Vec<u8>) -> u16 {
-        let mut header = vec![];
-        // Two's complement
-        for &elem in bytes {
-            let x = (elem << 8 + 256) % (1 << 8);
-            header.push(x);
-        }
-
+    pub fn calc_checksum(header: &Vec<u8>) -> u16 {
         let mut binary_u16_segments = vec![];
         // Merge two u8 to u16
         for i in (0..header.len()).step_by(2) {
-            let segment = (header[i] << 8 | header[i + 1]) as u16;
+            let segment = (header[i] as u16) * 256 + (header[i + 1]) as u16;
             binary_u16_segments.push(segment);
         }
 
         // Calculate the checksum
         let mut checksum = 0;
         for segment in binary_u16_segments {
-            let sum: u32 = (checksum + segment) as u32;
+            let sum: u32 = checksum as u32 + segment as u32;
             // handle overflow
-            if sum > 0xFF {
-                checksum = ((sum & 0xFF) + 1) as u16
+            if sum > 0xFFFF {
+                checksum = ((sum & 0xFFFF) + 1) as u16
+            } else {
+                checksum = sum as u16
             }
         }
 
         // Bitwise
-        !checksum & 0xFFFF
+        !checksum
     }
 }
 
