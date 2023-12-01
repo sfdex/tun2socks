@@ -1,4 +1,5 @@
 mod tun;
+pub mod dns;
 mod socks;
 pub mod protocol;
 
