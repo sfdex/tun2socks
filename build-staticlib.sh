@@ -1,0 +1,1 @@
+cargo build --release --target aarch64-linux-android

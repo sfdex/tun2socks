@@ -1,9 +1,14 @@
+use std::os::raw::c_int;
+
 mod tun;
 pub mod dns;
 mod socks;
 pub mod protocol;
 
-pub fn tun2socks() {}
+#[no_mangle]
+pub extern "C" fn tun2socks(fd: c_int) {
+    tun::main(fd);
+}
 
 #[cfg(test)]
 mod tests {

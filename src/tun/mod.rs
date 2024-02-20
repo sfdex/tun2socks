@@ -1,13 +1,12 @@
-use std::fs::File;
 use std::io::{Read, Write};
-use std::net::{TcpStream, UdpSocket};
-use std::os::fd::{AsRawFd, FromRawFd, IntoRawFd, RawFd};
+use std::net::TcpStream;
+use std::os::fd::{AsRawFd, FromRawFd, RawFd};
 use std::os::raw::c_int;
 
-fn read(fd: c_int) {
+pub fn main(fd: c_int) {
     let raw_fd = RawFd::from(fd).as_raw_fd();
     let mut stream = unsafe { TcpStream::from_raw_fd(raw_fd) };
-    let mut buf = vec![0; 1024];
+    let mut buf = vec![0; 5]; // Usual ip header length
     loop {
         match stream.read(&mut buf) {
             Ok(0) => {
@@ -20,19 +19,6 @@ fn read(fd: c_int) {
             Err(err) => {
                 println!("tun read err: {}", err)
             }
-        }
-    }
-}
-
-fn write(fd: c_int, data: Vec<u8>) {
-    let raw_fd = RawFd::from(fd).as_raw_fd();
-    let mut stream = unsafe { TcpStream::from_raw_fd(raw_fd) };
-    match stream.write_all(&data) {
-        Ok(_) => {
-            println!("tun write success");
-        }
-        Err(err) => {
-            println!("tun write err: {}", err)
         }
     }
 }
