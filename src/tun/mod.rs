@@ -1,10 +1,10 @@
-use std::ffi::CStr;
+use std::ffi::{c_char, CStr};
 use std::fs::{File, OpenOptions};
 use std::io::{Read, Write};
 use std::os::fd::{AsRawFd, FromRawFd, RawFd};
 use std::os::raw::c_int;
 
-pub fn main(fd: c_int, log_path: *const u8) {
+pub fn main(fd: c_int, log_path: *const c_char) {
     let raw_fd = RawFd::from(fd).as_raw_fd();
     let c_str = unsafe { CStr::from_ptr(log_path) };
     let path = c_str.to_string_lossy().into_owned();

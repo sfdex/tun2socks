@@ -1,4 +1,4 @@
-use trust_dns_resolver::config::{ResolverConfig, ResolverOpts};
+/*use trust_dns_resolver::config::{ResolverConfig, ResolverOpts};
 use trust_dns_resolver::Resolver;
 
 pub fn dns_resolve() {
@@ -13,4 +13,4 @@ pub fn dns_resolve() {
         }
         Err(err) => eprintln!("Cannot resolve domain: {}", err)
     }
-}
+}*/

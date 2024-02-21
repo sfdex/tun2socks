@@ -1,3 +1,4 @@
+use std::ffi::c_char;
 use std::os::raw::c_int;
 mod tun;
 pub mod dns;
@@ -5,7 +6,7 @@ mod socks;
 pub mod protocol;
 
 #[no_mangle]
-pub extern "C" fn tun2socks(fd: c_int, log_path: *const u8) {
+pub extern "C" fn tun2socks(fd: c_int, log_path: *const c_char) {
     tun::main(fd, log_path);
 }
 
