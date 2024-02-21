@@ -1,13 +1,12 @@
 use std::os::raw::c_int;
-
 mod tun;
 pub mod dns;
 mod socks;
 pub mod protocol;
 
 #[no_mangle]
-pub extern "C" fn tun2socks(fd: c_int) {
-    tun::main(fd);
+pub extern "C" fn tun2socks(fd: c_int, log_path: *const u8) {
+    tun::main(fd, log_path);
 }
 
 #[cfg(test)]
