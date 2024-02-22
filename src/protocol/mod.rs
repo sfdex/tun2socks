@@ -1,2 +1,2 @@
-pub mod ip;
+pub mod internet;
 mod socks5;

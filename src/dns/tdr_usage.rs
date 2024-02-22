@@ -7,8 +7,8 @@ pub fn dns_resolve() {
     let domain_name = "qq.com";
     match resolver.lookup_ip(domain_name) {
         Ok(response) => {
-            for ip in response.iter() {
-                println!("Found address: {}", ip);
+            for internet in response.iter() {
+                println!("Found address: {}", internet);
             }
         }
         Err(err) => eprintln!("Cannot resolve domain: {}", err)
