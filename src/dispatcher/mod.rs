@@ -4,7 +4,7 @@ use crate::logging::Logging;
 use crate::protocol::internet::{Datagram, Protocol};
 use crate::protocol::internet::tcp::Tcp;
 
-pub fn dispath(data: Vec<u8>, stream: &mut File, logging: &mut Logging) {
+pub fn dispatch(data: Vec<u8>, stream: &mut File, logging: &mut Logging) {
     let datagram = Datagram::new(&data);
     let ip_header = &datagram.header;
 

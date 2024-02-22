@@ -4,8 +4,9 @@ use std::io::{Error, ErrorKind, Read};
 use std::os::fd::{AsRawFd, FromRawFd, RawFd};
 use std::os::raw::c_int;
 use std::thread;
-use crate::dispatcher::dispath;
 use crate::logging::Logging;
+
+const MTU: usize = 1500;
 
 pub fn main(fd: c_int, log_path: *const c_char) {
     let raw_fd = RawFd::from(fd).as_raw_fd();
@@ -21,7 +22,7 @@ pub fn main(fd: c_int, log_path: *const c_char) {
     logging.i(format!("main({}, {})", fd, &path));
 
     let mut stream = unsafe { File::from_raw_fd(raw_fd) };
-    let mut buf = vec![0; 20]; // Usual internet header length
+    let mut buf = vec![0; MTU]; // Usual internet header length
     let mut last_err = Error::new(ErrorKind::InvalidInput, "Oh no");
     loop {
         match stream.read(&mut buf) {
@@ -31,13 +32,13 @@ pub fn main(fd: c_int, log_path: *const c_char) {
             }
             Ok(n) => {
                 let header = &buf[..n];
-                if n != 20 {
+                if n < 20 {
                     logging.e(format!("error internet datagram(len[{n}]): {:?}", header));
                     continue;
                 }
 
                 println!("tun read msg: {:?}", header);
-                logging.i(format!("header{:?}", &header));
+                logging.i(format!("Datagram: len({n}), {:?}", &header));
 
                 // msg[0] & 4 == 4 #ipv4
                 // msg[0] & 6 == 6 #ipv6
@@ -45,28 +46,33 @@ pub fn main(fd: c_int, log_path: *const c_char) {
                 match version {
                     4 => {
                         // Read remaining bytes
-                        let total_length = header[2] as u16 * 256 + header[3] as u16;
-                        let remaining_length = (total_length - 20) as usize;
-                        let mut buf = vec![0; remaining_length];
-                        if let Ok(n) = stream.read(&mut buf) {
-                            if n != remaining_length {
-                                logging.e(format!("Remaining packet read error, remaining {remaining_length}, actually {n}"));
-                                continue;
-                            }
+                        let total_length = header[2] as usize * 256 + header[3] as usize;
+                        let remaining_length = total_length - n;
+                        let mut buf2 = vec![0; remaining_length];
+                        logging.i(format!("packet: total[{total_length}], remaining[{remaining_length}], buf2[{}]", buf2.len()));
 
-                            // Merge internet datagram header and payload
-                            let mut data = Vec::new();
-                            data.extend_from_slice(&header);
-                            data.extend_from_slice(&buf);
+                        // match stream.read(&mut buf2) {
+                        //     Ok(n) => {
+                        //         if n != remaining_length {
+                        //             logging.e(format!("Remaining packet read error, remaining {remaining_length}, actually {n}"));
+                        //             continue;
+                        //         }
 
-                            let mut copy_stream = stream.try_clone().unwrap();
-                            let mut copy_logging = logging.clone();
-                            thread::spawn(move || {
-                                dispath(data, &mut copy_stream, &mut copy_logging);
-                            });
-                        } else {
-                            logging.e("Remaining packet read error".to_string());
-                        }
+                        // Merge internet datagram header and payload
+                        let mut data = Vec::new();
+                        data.extend_from_slice(&header);
+                        // data.extend_from_slice(&buf2[..n]);
+
+                        let mut copy_stream = stream.try_clone().unwrap();
+                        let mut copy_logging = logging.clone();
+                        thread::spawn(move || {
+                            crate::dispatcher::dispatch(data, &mut copy_stream, &mut copy_logging);
+                        });
+                        //     }
+                        //     Err(err) => {
+                        //         logging.e(format!("Remaining packet read error(kind:{}, msg:{}, desc:{})", err.kind(), err, err.to_string()));
+                        //     }
+                        // }
                     }
                     6 => {
                         logging.w("Unsupported version ipv6".to_string());
