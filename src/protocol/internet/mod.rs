@@ -1,3 +1,7 @@
+use std::fs::File;
+use std::io::Write;
+use crate::util::bytes_to_u32;
+
 pub mod tcp;
 pub mod udp;
 
@@ -51,23 +55,38 @@ pub struct Datagram {
 }
 
 pub struct Header {
-    pub version_ihl: u8, pub dscp_ecn: u8, pub total_length: u16,
-    pub identification: u16, pub flags_fragment_offset: u16,
-    pub ttl: u8, pub protocol: u8, pub checksum: u16,
+    pub version_ihl: u8, pub dscp_ecn: u8, pub total_length: [u8; 2],
+    pub identification: [u8; 2], pub flags_fragment_offset: [u8; 2],
+    pub ttl: u8, pub protocol: u8, pub checksum: [u8; 2],
     pub src_ip: [u8; 4], pub dst_ip: [u8; 4],
     // options: [u8],
     pub options: Vec<u8>,
 }
 
-#[derive(Debug)]
-pub enum Protocol{
-    TCP,
-    UDP,
-    ICMP,
-    UNKNOWN,
-}
-
 impl Datagram {
+    pub fn write(&self, f: & mut File, payload: Vec<u8>) -> std::io::Result<()>{
+        let mut packet = Vec::new();
+        let header = &self.header;
+        packet.extend_from_slice(&[header.version_ihl, header.dscp_ecn, header.total_length[0], header.total_length[1]]);
+        packet.extend_from_slice(&[0, 0, 0, 0]);
+        packet.extend_from_slice(&[header.ttl, header.protocol, 0, 0]);
+        packet.extend_from_slice(&header.dst_ip);
+        packet.extend_from_slice(&header.src_ip);
+        packet.extend_from_slice(&header.options);
+
+        // Set checksum
+        let checksum = Self::calc_checksum(&packet);
+        (packet[10], packet[11]) = (checksum[0], checksum[1]);
+
+        packet.extend_from_slice(&payload);
+
+        // Set total length
+        let length = packet.len().to_be_bytes();
+        (packet[2], packet[3]) = (length[0], length[1]);
+
+        f.write_all(&packet)
+    }
+
     pub fn new(bytes: &[u8]) -> Self {
         let ihl = bytes[0] & 0x0F;
         let options_len = (ihl - 5) as usize;
@@ -77,12 +96,12 @@ impl Datagram {
             header: Header {
                 version_ihl: bytes[0],
                 dscp_ecn: bytes[1],
-                total_length: (bytes[2] << 8 + bytes[3]) as u16,
-                identification: (bytes[4] << 8 + bytes[5]) as u16,
-                flags_fragment_offset: (bytes[6] << 8 + bytes[7]) as u16,
+                total_length: [bytes[2], bytes[3]],
+                identification: [bytes[4], bytes[5]],
+                flags_fragment_offset: [bytes[6], bytes[7]],
                 ttl: bytes[8],
                 protocol: bytes[9],
-                checksum: (bytes[10] << 8 + bytes[11]) as u16,
+                checksum: [bytes[10], bytes[11]],
                 src_ip: [bytes[12], bytes[13], bytes[14], bytes[15]],
                 dst_ip: [bytes[16], bytes[17], bytes[18], bytes[19]],
                 options: bytes[20..(20 + options_len)].to_owned(),
@@ -103,13 +122,13 @@ impl Datagram {
     pub fn verify_checksum(header: &Vec<u8>) -> bool {
         let checksum = Self::calc_checksum(header);
         return if header[10] != 0 || header[11] != 0 {
-            checksum == 0
+            bytes_to_u32(&checksum) == 0
         } else {
             false
         };
     }
 
-    pub fn calc_checksum(header: &Vec<u8>) -> u16 {
+    pub fn calc_checksum(header: &Vec<u8>) -> [u8; 2] {
         let mut binary_u16_segments = vec![];
         // Merge two u8 to u16
         for i in (0..header.len()).step_by(2) {
@@ -129,21 +148,15 @@ impl Datagram {
             }
         }
 
-        // Bitwise
-        !checksum
+        // Bitwise and to bytes
+        (!checksum).to_be_bytes()
     }
 }
 
-struct DatagramDetail {
-    version: u8,
-    ihl: u8,
-    tos: u8,
-    total_length: u16,
-    identification: u16,
-    flags: u8,
-    fragment_offset: u32,
-    ttl: u8,
-    protocol: u8,
-    header_checksum: u16,
-    options: Vec<u8>,
+#[derive(Debug)]
+pub enum Protocol{
+    TCP,
+    UDP,
+    ICMP,
+    UNKNOWN,
 }

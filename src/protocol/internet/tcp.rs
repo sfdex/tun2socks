@@ -1,6 +1,8 @@
+use crate::protocol::internet::Datagram;
+
 pub struct Tcp {
-    header: Header,
-    payload: Vec<u8>,
+    pub header: Header,
+    pub payload: Vec<u8>,
 }
 
 pub struct Header {
@@ -13,6 +15,23 @@ pub struct Header {
 }
 
 impl Tcp {
+    pub fn pack(&self, flags: u8) -> Vec<u8>{
+        let mut pack = Vec::new();
+        let header = &self.header;
+        pack.extend_from_slice(&header.dst_port);
+        pack.extend_from_slice(&header.src_port);
+        pack.extend_from_slice(&header.seq_no);
+        pack.extend_from_slice(&header.ack_no);
+        pack.extend_from_slice(&[0, flags, header.window[0], header.window[1]]);
+        pack.extend_from_slice(&[0, 0, header.urgent_pointer[0], header.urgent_pointer[1]]);
+        pack.extend_from_slice(&header.options);
+
+        // Set header checksum
+        let checksum = Datagram::calc_checksum(&pack);
+        (pack[16], pack[17]) = (checksum[0], checksum[1]);
+
+        pack
+    }
     pub fn new(bytes: Vec<u8>) -> Self {
         let data_offset = (bytes[12] >> 4 & 0b1111) as usize;
         let options = bytes[20..data_offset].to_vec();
