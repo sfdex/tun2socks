@@ -2,8 +2,9 @@ use std::fs::File;
 use std::net::IpAddr;
 use crate::dispatcher::direct::dial_tcp;
 use crate::logging::Logging;
-use crate::protocol::internet::{Datagram, Protocol};
+use crate::protocol::internet::{Datagram, Protocol, tcp};
 use crate::protocol::internet::tcp::Tcp;
+use crate::protocol::internet::tcp::ControlType::*;
 use crate::util::{bytes_to_u32, bytes_to_u32_no_prefix};
 
 pub mod direct;
@@ -26,11 +27,17 @@ pub fn dispatch(data: Vec<u8>, stream: &mut File, logging: &mut Logging) {
 
     match &datagram.protocol() {
         Protocol::TCP => {
-            let tcp = Tcp::new(datagram.payload);
+            let tcp = Tcp::new(&datagram.payload);
+            match tcp.control_type() {
+                SYN => {
+                    let result = datagram.write(stream, &tcp.pack(0b010010));
+                }
+                PUSH => {}
+                _ => {}
+            };
             let addr = IpAddr::from(ip_header.dst_ip);
             let port = bytes_to_u32(&tcp.header.dst_port) as u16;
             let result = dial_tcp(addr, port, &[1u8]);
-
         }
         Protocol::UDP => {
             logging.e("Unsupported udp protocol".to_string())

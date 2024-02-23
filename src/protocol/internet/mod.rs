@@ -64,7 +64,7 @@ pub struct Header {
 }
 
 impl Datagram {
-    pub fn write(&self, f: & mut File, payload: Vec<u8>) -> std::io::Result<()>{
+    pub fn write(&self, f: & mut File, payload: &[u8]) -> std::io::Result<()>{
         let mut packet = Vec::new();
         let header = &self.header;
         packet.extend_from_slice(&[header.version_ihl, header.dscp_ecn, header.total_length[0], header.total_length[1]]);
