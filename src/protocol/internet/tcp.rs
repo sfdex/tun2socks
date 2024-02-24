@@ -15,6 +15,7 @@ pub struct Header {
     pub options: Vec<u8>,
 }
 
+#[derive(Debug)]
 pub enum ControlType{
     SYN,
     SACK,
@@ -27,6 +28,32 @@ pub enum ControlType{
 }
 
 impl Tcp {
+    pub fn new(bytes: &[u8]) -> Self {
+        let data_offset = (bytes[12] >> 4 & 0b1111) as usize;
+        println!("data_offset: {data_offset}");
+        let options = bytes[20..(20 + data_offset * 4)].to_vec();
+
+        let header = Header{
+            src_port: [bytes[0], bytes[1]],
+            dst_port: [bytes[2], bytes[3]],
+            seq_no: [bytes[4], bytes[5], bytes[6], bytes[7]],
+            ack_no: [bytes[8], bytes[9], bytes[10], bytes[11]],
+            data_offset: data_offset as u8,
+            control_flags: bytes[13] & 0b111111,
+            window: [bytes[14], bytes[15]],
+            checksum: [bytes[16], bytes[17]],
+            urgent_pointer: [bytes[18], bytes[19]],
+            options
+        };
+
+        let payload = bytes[data_offset..].to_vec();
+
+        Self{
+            header,
+            payload,
+        }
+    }
+
     pub fn pack(&self, flags: u8) -> Vec<u8>{
         let mut pack = Vec::new();
         let header = &self.header;
@@ -75,31 +102,22 @@ impl Tcp {
         };
 
         ControlType::UNKNOWN
-
     }
 
-    pub fn new(bytes: &[u8]) -> Self {
-        let data_offset = (bytes[12] >> 4 & 0b1111) as usize;
-        let options = bytes[20..data_offset].to_vec();
+    pub fn info(&self) -> String {
+        let mut info = String::new();
+        let header = &self.header;
+        info.push_str(&format!("seq_no: {}, ", bytes_to_u32(&header.seq_no)));
+        info.push_str(&format!("ack_no: {}\n", bytes_to_u32(&header.ack_no)));
+        info.push_str(&format!("offset: {}\n", header.data_offset));
 
-        let header = Header{
-            src_port: [bytes[0], bytes[1]],
-            dst_port: [bytes[2], bytes[3]],
-            seq_no: [bytes[4], bytes[5], bytes[6], bytes[7]],
-            ack_no: [bytes[8], bytes[9], bytes[10], bytes[11]],
-            data_offset: data_offset as u8,
-            control_flags: bytes[13] & 0b111111,
-            window: [bytes[14], bytes[15]],
-            checksum: [bytes[16], bytes[17]],
-            urgent_pointer: [bytes[18], bytes[19]],
-            options
-        };
+        let flags = header.control_flags;
+        info.push_str(&format!(
+            "URG:{}, ACK:{}, PSH:{}, RST:{}, SYN:{}, FIN:{}\n",
+            (flags & 32) >> 5, (flags & 16) >> 4, (flags & 8) >> 3, (flags & 4) >> 2, (flags & 2) >> 1, flags & 1
+        ));
+        info.push_str(&format!("control type: {:?}\n", self.control_type()));
 
-        let payload = bytes[data_offset..].to_vec();
-
-        Self{
-            header,
-            payload,
-        }
+        info
     }
 }

@@ -1,24 +1,24 @@
 pub fn bytes_to_u32(bytes: &[u8]) -> u32 {
     let mut result = 0u32;
-    let mut mv = bytes.len() - 1;
+    let mut mv = bytes.len();
     for byte in bytes {
-        result = result + (*byte << mv * 8) as u32;
         mv = mv - 1;
+        result = result + ((*byte) as u32) << mv * 8;
     };
     result
 }
 
 pub fn bytes_to_u32_no_prefix(bytes: &[u8], n_prefix: u32) -> u32 {
     let mut result = 0u32;
-    let mut mv = bytes.len() - 1;
+    let mut mv = bytes.len();
     for byte in bytes {
+        mv = mv - 1;
         if mv == bytes.len() - 1 {
             let highest = byte & (2u8.pow(8 - n_prefix) - 1);
             result = (highest as u32) << mv * 8;
         } else {
             result = result + ((*byte as u32) << mv * 8);
         }
-        mv = mv - 1;
     };
     result
 }

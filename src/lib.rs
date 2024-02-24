@@ -1,14 +1,14 @@
 use std::ffi::c_char;
 use std::os::raw::c_int;
 
-mod tun;
+pub mod tun;
 pub mod dns;
 mod socks;
 pub mod protocol;
 
 mod dispatcher;
 
-mod logging;
+pub mod logging;
 
 mod util;
 
@@ -19,6 +19,8 @@ pub extern "C" fn tun2socks(fd: c_int, log_path: *const c_char) {
 
 #[cfg(test)]
 mod tests {
+    use std::fs::File;
+    use crate::logging::Logging;
     use super::*;
 
     #[test]
@@ -36,5 +38,14 @@ mod tests {
         // assert_eq!(4294967295u32.to_be_bytes(), [255, 255, 255, 255]);
         assert_eq!(16777215u32.to_be_bytes(), [0, 255, 255, 255]);
         // assert_eq!(util::u16_to_bytes(65535), [255, 255]);
+    }
+
+    #[test]
+    fn test_datagram_tcp() {
+        let datagram = [];
+        let mut stream = File::create("stream.txt").unwrap();
+        let mut logging = Logging::new("logging.txt");
+        tun::handle_datagram(&datagram, &mut stream, &mut logging);
+        assert_eq!(2 + 2, 4);
     }
 }

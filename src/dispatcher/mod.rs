@@ -22,12 +22,15 @@ pub fn dispatch(data: Vec<u8>, stream: &mut File, logging: &mut Logging) {
                       &datagram.protocol(),
                       IpAddr::from(ip_header.src_ip),
                       IpAddr::from(ip_header.dst_ip),
-                      ip_header.version_ihl >> 4,
+                      ip_header.version_ihl & 0x0F,
     ));
+
+    logging.i(format!("payload length: {}", &datagram.payload.len()));
 
     match &datagram.protocol() {
         Protocol::TCP => {
             let tcp = Tcp::new(&datagram.payload);
+            logging.i(tcp.info());
             match tcp.control_type() {
                 SYN => {
                     let result = datagram.write(stream, &tcp.pack(0b010010));
@@ -35,9 +38,9 @@ pub fn dispatch(data: Vec<u8>, stream: &mut File, logging: &mut Logging) {
                 PUSH => {}
                 _ => {}
             };
-            let addr = IpAddr::from(ip_header.dst_ip);
-            let port = bytes_to_u32(&tcp.header.dst_port) as u16;
-            let result = dial_tcp(addr, port, &[1u8]);
+            // let addr = IpAddr::from(ip_header.dst_ip);
+            // let port = bytes_to_u32(&tcp.header.dst_port) as u16;
+            // let result = dial_tcp(addr, port, &[1u8]);
         }
         Protocol::UDP => {
             logging.e("Unsupported udp protocol".to_string())
@@ -49,4 +52,6 @@ pub fn dispatch(data: Vec<u8>, stream: &mut File, logging: &mut Logging) {
             logging.e("Unsupported unknown protocol".to_string())
         }
     };
+
+    logging.d("TCP end\n\n".to_string());
 }
