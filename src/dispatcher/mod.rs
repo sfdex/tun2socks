@@ -18,7 +18,7 @@ pub fn dispatch(data: Vec<u8>, stream: &mut File, logging: &mut Logging) {
     let mf = (ip_header.flags_fragment_offset[0] >> 5) & 1;
     let offset = bytes_to_u32_no_prefix(&ip_header.flags_fragment_offset, 3);
 
-    logging.i(format!("{:?}: {:?} => {:?}, IHL({}), ID({id}, MF({mf}), OFFSET({offset})",
+    logging.i(format!("{:?}: {:?} => {:?}, IHL({}), ID({id}), MF({mf}), OFFSET({offset})",
                       &datagram.protocol(),
                       IpAddr::from(ip_header.src_ip),
                       IpAddr::from(ip_header.dst_ip),
@@ -34,6 +34,9 @@ pub fn dispatch(data: Vec<u8>, stream: &mut File, logging: &mut Logging) {
             match tcp.control_type() {
                 SYN => {
                     let result = datagram.write(stream, &tcp.pack(0b010010));
+                    if let Err(err) = result {
+                        logging.e(format!("Response to tun error: {}", err))
+                    }
                 }
                 PUSH => {}
                 _ => {}
