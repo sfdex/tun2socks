@@ -12,7 +12,13 @@ pub struct Header {
     pub ack_no: [u8; 4],
     pub data_offset: u8, pub control_flags: u8, pub window: [u8; 2],
     pub checksum: [u8; 2], pub urgent_pointer: [u8; 2],
-    pub options: Vec<u8>,
+    pub options: Vec<Option>,
+}
+
+pub struct Option{
+    pub kind: u8,
+    pub length: u8,
+    pub data: Vec<u8>,
 }
 
 #[derive(Debug)]
@@ -31,7 +37,26 @@ impl Tcp {
     pub fn new(bytes: &[u8]) -> Self {
         let data_offset = (bytes[12] >> 4 & 0b1111) as usize;
         println!("data_offset: {data_offset}");
-        let options = bytes[20..(data_offset * 4)].to_vec();
+        let options_bytes = bytes[20..(data_offset * 4)].to_vec();
+        println!("options bytes: {:?}", options_bytes);
+        let mut options = Vec::new();
+        let mut option_index = 0usize;
+        loop {
+            if options_bytes.len() == 0 { break; };
+            let kind = options_bytes[option_index];
+            if kind == 0 { break; };
+            if kind == 1 { // A No-Operation Option: This option code can be used between options
+                option_index = option_index + 1;
+                continue;
+            };
+            println!("kind = {kind}");
+
+            let length = options_bytes[option_index + 1];
+            let data = (options_bytes[option_index + 2..option_index + length as usize]).to_vec();
+            options.push(Option { kind, length, data });
+            option_index = option_index + length as usize;
+            if option_index >= options_bytes.len() { break; }
+        };
 
         let header = Header{
             src_port: [bytes[0], bytes[1]],
@@ -69,7 +94,12 @@ impl Tcp {
         pack.extend_from_slice(&seq_no.to_be_bytes());
         pack.extend_from_slice(&[0, flags, header.window[0], header.window[1]]);
         pack.extend_from_slice(&[0, 0, header.urgent_pointer[0], header.urgent_pointer[1]]);
-        pack.extend_from_slice(&header.options);
+        // TODO! Implement kind 1
+        for option in &header.options {
+            pack.push(option.kind);
+            pack.push(option.length);
+            pack.extend_from_slice(&option.data);
+        }
 
         // Set header checksum
         let checksum = Datagram::calc_checksum(&pack);
@@ -112,12 +142,20 @@ impl Tcp {
         info.push_str(&format!("\tack_no: {}\n", bytes_to_u32(&header.ack_no)));
         info.push_str(&format!("\toffset: {}\n", header.data_offset));
 
-        let flags = header.control_flags;
+        let flags = &header.control_flags;
         info.push_str(&format!(
             "\tURG:{}, ACK:{}, PSH:{}, RST:{}, SYN:{}, FIN:{}\n",
             (flags & 32) >> 5, (flags & 16) >> 4, (flags & 8) >> 3, (flags & 4) >> 2, (flags & 2) >> 1, flags & 1
         ));
         info.push_str(&format!("\tcontrol type: {:?}\n", self.control_type()));
+
+        info.push_str("\t---options---\n");
+        for option in &header.options {
+            info.push_str(&format!("\tkind:{}, length:{}, data:{:?}\n", option.kind, option.length, option.data));
+            if option.kind == 8 {
+                info.push_str(&format!("\t\tTimestamp: TSVal({}), TSecr({})\n", bytes_to_u32(&option.data[0..4]), bytes_to_u32(&option.data[4..8])));
+            };
+        }
 
         info
     }
