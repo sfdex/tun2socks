@@ -2,6 +2,8 @@ use crate::protocol::internet::Datagram;
 use crate::util::bytes_to_u32;
 
 pub struct Tcp {
+    pub src_ip: [u8; 4],
+    pub dst_ip: [u8; 4],
     pub header: Header,
     pub payload: Vec<u8>,
 }
@@ -15,7 +17,7 @@ pub struct Header {
     pub options: Vec<Option>,
 }
 
-pub struct Option{
+pub struct Option {
     pub kind: u8,
     pub length: u8,
     pub data: Vec<u8>,
@@ -34,11 +36,11 @@ pub enum ControlType{
 }
 
 impl Tcp {
-    pub fn new(bytes: &[u8]) -> Self {
+    pub fn new(bytes: &[u8], src_ip: [u8; 4], dst_ip: [u8; 4]) -> Self {
+        let length = bytes.len() as u16;
         let data_offset = (bytes[12] >> 4 & 0b1111) as usize;
-        println!("data_offset: {data_offset}");
+
         let options_bytes = bytes[20..(data_offset * 4)].to_vec();
-        println!("options bytes: {:?}", options_bytes);
         let mut options = Vec::new();
         let mut option_index = 0usize;
         loop {
@@ -47,9 +49,9 @@ impl Tcp {
             if kind == 0 { break; };
             if kind == 1 { // A No-Operation Option: This option code can be used between options
                 option_index = option_index + 1;
+                options.push(Option { kind, length: 0, data: Vec::new() });
                 continue;
             };
-            println!("kind = {kind}");
 
             let length = options_bytes[option_index + 1];
             let data = (options_bytes[option_index + 2..option_index + length as usize]).to_vec();
@@ -68,38 +70,63 @@ impl Tcp {
             window: [bytes[14], bytes[15]],
             checksum: [bytes[16], bytes[17]],
             urgent_pointer: [bytes[18], bytes[19]],
-            options
+            options,
         };
 
         let payload = bytes[data_offset..].to_vec();
 
         Self{
+            src_ip,
+            dst_ip,
             header,
             payload,
         }
     }
 
-    pub fn pack(&self, flags: u8) -> Vec<u8>{
+    pub fn pack(&self, id: u32, flags: u8) -> Vec<u8>{
         let mut pack = Vec::new();
         let header = &self.header;
-        let mut seq_no = bytes_to_u32(&header.ack_no);
+
+        let mut seq_no = bytes_to_u32(&header.seq_no);
         if seq_no == 0 {
             seq_no = 1;
         } else {
             seq_no = seq_no + 1
         }
+
         pack.extend_from_slice(&header.dst_port);
         pack.extend_from_slice(&header.src_port);
         pack.extend_from_slice(&(3001u32.to_be_bytes()));
         pack.extend_from_slice(&seq_no.to_be_bytes());
         pack.extend_from_slice(&[0, flags, header.window[0], header.window[1]]);
         pack.extend_from_slice(&[0, 0, header.urgent_pointer[0], header.urgent_pointer[1]]);
-        // TODO! Implement kind 1
+
         for option in &header.options {
+            if option.kind == 1 {
+                pack.push(1);
+                continue;
+            }
             pack.push(option.kind);
             pack.push(option.length);
-            pack.extend_from_slice(&option.data);
+            if option.kind == 8 {
+                pack.extend_from_slice(&id.to_be_bytes());
+                pack.extend_from_slice(&option.data[0..4]);
+            } else {
+                pack.extend_from_slice(&option.data);
+            };
         }
+
+        // Set data offset
+        let offset = (pack.len() as u8 / 4) << 4;
+        pack[12] = offset;
+
+        let mut header = Vec::new();
+        // Pseudo header for calc checksum
+        header.extend_from_slice(&self.src_ip);
+        header.extend_from_slice(&self.dst_ip);
+        header.extend_from_slice(&[0, 6]);
+        header.extend_from_slice(&(pack.len() as u16).to_be_bytes());
+        header.extend_from_slice(&pack);
 
         // Set header checksum
         let checksum = Datagram::calc_checksum(&pack);

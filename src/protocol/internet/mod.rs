@@ -64,29 +64,6 @@ pub struct Header {
 }
 
 impl Datagram {
-    pub fn write(&self, f: & mut File, payload: &[u8]) -> std::io::Result<()>{
-        let mut packet = Vec::new();
-        let header = &self.header;
-        packet.extend_from_slice(&[header.version_ihl, header.dscp_ecn, header.total_length[0], header.total_length[1]]);
-        packet.extend_from_slice(&[0, 0, 0, 0]);
-        packet.extend_from_slice(&[header.ttl, header.protocol, 0, 0]);
-        packet.extend_from_slice(&header.dst_ip);
-        packet.extend_from_slice(&header.src_ip);
-        packet.extend_from_slice(&header.options);
-
-        // Set checksum
-        let checksum = Self::calc_checksum(&packet);
-        (packet[10], packet[11]) = (checksum[0], checksum[1]);
-
-        packet.extend_from_slice(&payload);
-
-        // Set total length
-        let length = packet.len().to_be_bytes();
-        (packet[2], packet[3]) = (length[0], length[1]);
-
-        f.write_all(&packet)
-    }
-
     pub fn new(bytes: &[u8]) -> Self {
         let ihl = bytes[0] & 0x0F;
         let options_len = (ihl - 5) as usize;
@@ -150,6 +127,29 @@ impl Datagram {
 
         // Bitwise and to bytes
         (!checksum).to_be_bytes()
+    }
+
+    pub fn pack(&self, payload: &[u8]) -> Vec<u8>{
+        let mut packet = Vec::new();
+        let header = &self.header;
+        packet.extend_from_slice(&[header.version_ihl, header.dscp_ecn, 0, 0]);
+        packet.extend_from_slice(&[0, 0, header.flags_fragment_offset[0], header.flags_fragment_offset[1]]);
+        packet.extend_from_slice(&[header.ttl, header.protocol, 0, 0]);
+        packet.extend_from_slice(&header.dst_ip);
+        packet.extend_from_slice(&header.src_ip);
+        packet.extend_from_slice(&header.options);
+
+        // Set checksum
+        let checksum = Self::calc_checksum(&packet);
+        (packet[10], packet[11]) = (checksum[0], checksum[1]);
+
+        packet.extend_from_slice(&payload);
+
+        // Set total length
+        let length = (packet.len() as u16).to_be_bytes();
+        (packet[2], packet[3]) = (length[0], length[1]);
+
+        packet
     }
 }
 

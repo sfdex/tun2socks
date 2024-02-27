@@ -1,5 +1,7 @@
 use std::fs::File;
+use std::io::Write;
 use std::net::IpAddr;
+use std::time::SystemTime;
 use crate::dispatcher::direct::dial_tcp;
 use crate::logging::Logging;
 use crate::protocol::internet::{Datagram, Protocol, tcp};
@@ -9,7 +11,7 @@ use crate::util::{bytes_to_u32, bytes_to_u32_no_prefix};
 
 pub mod direct;
 
-pub fn dispatch(data: Vec<u8>, stream: &mut File, logging: &mut Logging) {
+pub fn dispatch(data: Vec<u8>, id: u32, stream: &mut File, logging: &mut Logging) {
     let datagram = Datagram::new(&data);
     let ip_header = &datagram.header;
 
@@ -18,7 +20,7 @@ pub fn dispatch(data: Vec<u8>, stream: &mut File, logging: &mut Logging) {
     let mf = (ip_header.flags_fragment_offset[0] >> 5) & 1;
     let offset = bytes_to_u32_no_prefix(&ip_header.flags_fragment_offset, 3);
 
-    logging.i(format!("{:?}: {:?} => {:?}, IHL({}), ID({id}), MF({mf}), OFFSET({offset})",
+    logging.i(format!("{id}: {:?}: {:?} => {:?}, IHL({}), ID({id}), MF({mf}), OFFSET({offset})",
                       &datagram.protocol(),
                       IpAddr::from(ip_header.src_ip),
                       IpAddr::from(ip_header.dst_ip),
@@ -29,14 +31,16 @@ pub fn dispatch(data: Vec<u8>, stream: &mut File, logging: &mut Logging) {
 
     match &datagram.protocol() {
         Protocol::TCP => {
-            let tcp = Tcp::new(&datagram.payload);
+            let tcp = Tcp::new(&datagram.payload, ip_header.src_ip, ip_header.dst_ip);
             logging.i(tcp.info());
             match tcp.control_type() {
                 SYN => {
-                    let result = datagram.write(stream, &tcp.pack(0b010010));
-                    if let Err(err) = result {
+                    let ip_package = datagram.pack(&tcp.pack(id, 0b010010));
+                    logging.i(format!("Respond: {:?}", &ip_package));
+
+                    if let Err(err) = stream.write(&ip_package) {
                         logging.e(format!("Response to tun error: {}", err))
-                    }
+                    };
                 }
                 PUSH => {}
                 _ => {}

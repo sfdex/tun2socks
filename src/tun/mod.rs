@@ -3,7 +3,8 @@ use std::fs::File;
 use std::io::{Error, ErrorKind, Read};
 use std::os::fd::{AsRawFd, FromRawFd, RawFd};
 use std::os::raw::c_int;
-use std::{panic, thread};
+use std::thread;
+use std::time::SystemTime;
 use crate::logging::Logging;
 
 const MTU: usize = 1500;
@@ -12,6 +13,8 @@ pub fn main(fd: c_int, log_path: *const c_char) {
     let raw_fd = RawFd::from(fd).as_raw_fd();
     let c_str = unsafe { CStr::from_ptr(log_path) };
     let path = c_str.to_string_lossy().into_owned();
+
+    let time = SystemTime::now();
 
     let mut logging = Logging::new(&path);
     logging.d("Hello tun2socks".to_string());
@@ -32,7 +35,9 @@ pub fn main(fd: c_int, log_path: *const c_char) {
                     continue;
                 }
 
-                handle_datagram(&datagram, &mut stream, &mut logging);
+                let id = time.elapsed().unwrap().as_millis() as u32;
+
+                handle_datagram(&datagram, id, &mut stream, &mut logging);
             }
             Err(err) => {
                 if err.kind() != last_err.kind() {
@@ -45,7 +50,7 @@ pub fn main(fd: c_int, log_path: *const c_char) {
     }
 }
 
-pub fn handle_datagram(datagram: &[u8], stream: &mut File, logging: &mut Logging) {
+pub fn handle_datagram(datagram: &[u8], id: u32, stream: &mut File, logging: &mut Logging) {
     logging.i(format!("Datagram: len({}), {:?}", (&datagram).len(), &datagram));
 
     // msg[0] & 4 == 4 #ipv4
@@ -60,7 +65,7 @@ pub fn handle_datagram(datagram: &[u8], stream: &mut File, logging: &mut Logging
 
             let s = thread::spawn(move || {
                 // let result = panic::catch_unwind(|| {
-                crate::dispatcher::dispatch(data, &mut copy_stream, &mut copy_logging);
+                crate::dispatcher::dispatch(data, id, &mut copy_stream, &mut copy_logging);
                 // });
                 // if let Err(err) = result {
                 //     copy_logging.e(format!("Error on thread: {:?}", err));
