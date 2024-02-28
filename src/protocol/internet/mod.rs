@@ -1,5 +1,3 @@
-use std::fs::File;
-use std::io::Write;
 use crate::util::bytes_to_u32;
 
 pub mod tcp;
@@ -50,7 +48,7 @@ Assigned Internet Protocol Numbers
 
 pub struct Datagram {
     pub header: Header,
-    // payload: [u8],
+    pub pseudo_header: PseudoHeader,
     pub payload: Vec<u8>,
 }
 
@@ -63,11 +61,30 @@ pub struct Header {
     pub options: Vec<u8>,
 }
 
+pub struct PseudoHeader {
+    pub src_ip: [u8; 4],
+    pub dst_ip: [u8; 4],
+    pub protocol: u8,
+    pub length: [u8; 2],
+}
+
 impl Datagram {
     pub fn new(bytes: &[u8]) -> Self {
         let ihl = bytes[0] & 0x0F;
         let options_len = (ihl - 5) as usize;
         // Self::verify_checksum(&bytes);
+
+        let src_ip = [bytes[12], bytes[13], bytes[14], bytes[15]];
+        let dst_ip = [bytes[16], bytes[17], bytes[18], bytes[19]];
+        let protocol = bytes[9];
+        let payload = bytes[(20 + options_len)..].to_owned();
+
+        let pseudo_header = PseudoHeader {
+            src_ip,
+            dst_ip,
+            protocol,
+            length: (payload.len() as u16).to_be_bytes(),
+        };
 
         Self {
             header: Header {
@@ -79,11 +96,12 @@ impl Datagram {
                 ttl: bytes[8],
                 protocol: bytes[9],
                 checksum: [bytes[10], bytes[11]],
-                src_ip: [bytes[12], bytes[13], bytes[14], bytes[15]],
-                dst_ip: [bytes[16], bytes[17], bytes[18], bytes[19]],
+                src_ip,
+                dst_ip,
                 options: bytes[20..(20 + options_len)].to_owned(),
             },
-            payload: bytes[(20 + options_len)..].to_owned(),
+            pseudo_header,
+            payload,
         }
     }
 
@@ -150,6 +168,19 @@ impl Datagram {
         (packet[2], packet[3]) = (length[0], length[1]);
 
         packet
+    }
+}
+
+impl PseudoHeader {
+    pub fn to_be_bytes(&self) -> Vec<u8>{
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(&self.src_ip);
+        bytes.extend_from_slice(&self.dst_ip);
+        bytes.push(0);
+        bytes.push(self.protocol);
+        bytes.extend_from_slice(&self.length);
+        // <[u8; 12]>::try_from(bytes).unwrap()
+        bytes
     }
 }
 

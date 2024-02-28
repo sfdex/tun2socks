@@ -4,9 +4,10 @@ use std::net::IpAddr;
 use std::time::SystemTime;
 use crate::dispatcher::direct::dial_tcp;
 use crate::logging::Logging;
-use crate::protocol::internet::{Datagram, Protocol, tcp};
+use crate::protocol::internet::{Datagram, Protocol, PseudoHeader, tcp};
 use crate::protocol::internet::tcp::Tcp;
 use crate::protocol::internet::tcp::ControlType::*;
+use crate::protocol::internet::udp::Udp;
 use crate::util::{bytes_to_u32, bytes_to_u32_no_prefix};
 
 pub mod direct;
@@ -29,18 +30,30 @@ pub fn dispatch(data: Vec<u8>, id: u32, stream: &mut File, logging: &mut Logging
 
     logging.i(format!("payload length: {}", &datagram.payload.len()));
 
+    let mut pseudo_header = PseudoHeader {
+        src_ip: ip_header.dst_ip,
+        dst_ip: ip_header.src_ip,
+        protocol: ip_header.protocol,
+        length: [0, 0],
+    };
+
     match &datagram.protocol() {
         Protocol::TCP => {
-            let tcp = Tcp::new(&datagram.payload, ip_header.src_ip, ip_header.dst_ip);
+            let tcp = Tcp::new(&datagram.payload);
             logging.i(tcp.info());
             match tcp.control_type() {
                 SYN => {
-                    let ip_package = datagram.pack(&tcp.pack(id, 0b010010));
-                    logging.i(format!("Respond: {:?}", &ip_package));
+                    let ip_packet = datagram.pack(&tcp.pack(id, 0b010010, vec![], &mut pseudo_header));
+                    logging.i(format!("Respond to tcp({id}), len({}), packet: {:?}", &ip_packet.len(), &ip_packet));
 
-                    if let Err(err) = stream.write(&ip_package) {
-                        logging.e(format!("Response to tun error: {}", err))
-                    };
+                    match stream.write(&ip_packet) {
+                        Ok(n) => {
+                            logging.i(format!("Respond to tcp({id}), size({n})"));
+                        }
+                        Err(err) => {
+                            logging.e(format!("Response to tcp({id}) error: {}", err))
+                        }
+                    }
                 }
                 PUSH => {}
                 _ => {}
@@ -48,9 +61,29 @@ pub fn dispatch(data: Vec<u8>, id: u32, stream: &mut File, logging: &mut Logging
             // let addr = IpAddr::from(ip_header.dst_ip);
             // let port = bytes_to_u32(&tcp.header.dst_port) as u16;
             // let result = dial_tcp(addr, port, &[1u8]);
+
+            logging.d("TCP end\n\n".to_string());
         }
         Protocol::UDP => {
-            logging.e("Unsupported udp protocol".to_string())
+            let udp = Udp::new(&datagram.payload);
+            logging.i(udp.info());
+
+            let payload = "hello net".as_bytes();
+            // Invalid argument (os error 22)
+            // let ip_packet = udp.pack(&mut pseudo_header, &payload);
+            let ip_packet = datagram.pack(&udp.pack(&mut pseudo_header, &payload));
+            logging.i(format!("Respond to udp({id}), len({}), packet: {:?}", &ip_packet.len(), &ip_packet));
+
+            match stream.write(&ip_packet) {
+                Ok(n) => {
+                    logging.i(format!("Respond to udp({id}), size({n})"));
+                }
+                Err(err) => {
+                    logging.e(format!("Response to udp({id}) error: {:?}", err))
+                }
+            }
+
+            logging.d("UDP end\n\n".to_string());
         }
         Protocol::ICMP => {
             logging.e("Unsupported ICMP protocol".to_string())
@@ -59,6 +92,4 @@ pub fn dispatch(data: Vec<u8>, id: u32, stream: &mut File, logging: &mut Logging
             logging.e("Unsupported unknown protocol".to_string())
         }
     };
-
-    logging.d("TCP end\n\n".to_string());
 }

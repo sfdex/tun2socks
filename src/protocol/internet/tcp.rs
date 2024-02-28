@@ -1,9 +1,7 @@
-use crate::protocol::internet::Datagram;
+use crate::protocol::internet::{Datagram, PseudoHeader};
 use crate::util::bytes_to_u32;
 
 pub struct Tcp {
-    pub src_ip: [u8; 4],
-    pub dst_ip: [u8; 4],
     pub header: Header,
     pub payload: Vec<u8>,
 }
@@ -36,8 +34,7 @@ pub enum ControlType{
 }
 
 impl Tcp {
-    pub fn new(bytes: &[u8], src_ip: [u8; 4], dst_ip: [u8; 4]) -> Self {
-        let length = bytes.len() as u16;
+    pub fn new(bytes: &[u8]) -> Self {
         let data_offset = (bytes[12] >> 4 & 0b1111) as usize;
 
         let options_bytes = bytes[20..(data_offset * 4)].to_vec();
@@ -76,14 +73,12 @@ impl Tcp {
         let payload = bytes[data_offset..].to_vec();
 
         Self{
-            src_ip,
-            dst_ip,
             header,
             payload,
         }
     }
 
-    pub fn pack(&self, id: u32, flags: u8) -> Vec<u8>{
+    pub fn pack(&self, id: u32, flags: u8, payload: Vec<u8>, pseudo_header: &mut PseudoHeader) -> Vec<u8>{
         let mut pack = Vec::new();
         let header = &self.header;
 
@@ -120,17 +115,16 @@ impl Tcp {
         let offset = (pack.len() as u8 / 4) << 4;
         pack[12] = offset;
 
-        let mut header = Vec::new();
-        // Pseudo header for calc checksum
-        header.extend_from_slice(&self.src_ip);
-        header.extend_from_slice(&self.dst_ip);
-        header.extend_from_slice(&[0, 6]);
-        header.extend_from_slice(&(pack.len() as u16).to_be_bytes());
+        pseudo_header.length = ((pack.len() + payload.len()) as u16).to_be_bytes();
+        let mut header = pseudo_header.to_be_bytes();
         header.extend_from_slice(&pack);
 
         // Set header checksum
         let checksum = Datagram::calc_checksum(&pack);
         (pack[16], pack[17]) = (checksum[0], checksum[1]);
+
+        // Add payload
+        pack.extend_from_slice(&payload);
 
         pack
     }
@@ -164,7 +158,7 @@ impl Tcp {
     pub fn info(&self) -> String {
         let mut info = String::new();
         let header = &self.header;
-        info.push_str("tcp info: \n");
+        info.push_str("TCP info: \n");
         info.push_str(&format!("\tseq_no: {}, ", bytes_to_u32(&header.seq_no)));
         info.push_str(&format!("\tack_no: {}\n", bytes_to_u32(&header.ack_no)));
         info.push_str(&format!("\toffset: {}\n", header.data_offset));
