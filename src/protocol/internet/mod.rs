@@ -123,11 +123,12 @@ impl Datagram {
         };
     }
 
-    pub fn calc_checksum(header: &Vec<u8>) -> [u8; 2] {
+    pub fn calc_checksum(header: &[u8]) -> [u8; 2] {
+        println!("header: {:?}", header);
         let mut binary_u16_segments = vec![];
         // Merge two u8 to u16
         for i in (0..header.len()).step_by(2) {
-            let segment = (header[i] as u16) * 256 + (header[i + 1]) as u16;
+            let segment = (header[i] as u16) * 256 + header[i + 1] as u16;
             binary_u16_segments.push(segment);
         }
 
@@ -157,15 +158,15 @@ impl Datagram {
         packet.extend_from_slice(&header.src_ip);
         packet.extend_from_slice(&header.options);
 
-        // Set checksum
-        let checksum = Self::calc_checksum(&packet);
-        (packet[10], packet[11]) = (checksum[0], checksum[1]);
-
         packet.extend_from_slice(&payload);
 
         // Set total length
         let length = (packet.len() as u16).to_be_bytes();
         (packet[2], packet[3]) = (length[0], length[1]);
+
+        // Set checksum
+        let checksum = Self::calc_checksum(&packet[..(packet.len() - payload.len())]);
+        (packet[10], packet[11]) = (checksum[0], checksum[1]);
 
         packet
     }

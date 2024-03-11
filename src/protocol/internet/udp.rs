@@ -38,18 +38,20 @@ impl Udp {
         let mut packet = Vec::new();
         packet.extend_from_slice(&self.header.dst_port);
         packet.extend_from_slice(&self.header.src_port);
+
         let length = ((8 + payload.len()) as u16).to_be_bytes();
         packet.extend_from_slice(&length);
-        packet.extend_from_slice(&[0, 0]);
-
-        // Checksum
-        pseudo_header.length = ((8 + payload.len()) as u16).to_be_bytes();
-        let mut header = pseudo_header.to_be_bytes();
-        header.extend_from_slice(&packet);
-        let checksum = Datagram::calc_checksum(&header);
-        (packet[6], packet[7]) = (checksum[0], checksum[1]);
+        packet.extend_from_slice(&[0, 0]); // checksum
 
         packet.extend_from_slice(&payload);
+
+        // Checksum
+        pseudo_header.length = length;
+        let mut header = pseudo_header.to_be_bytes();
+        header.extend_from_slice(&packet[..packet.len()]);
+        if header.len() % 2 != 0 { header.push(0); }
+        let checksum = Datagram::calc_checksum(&header);
+        (packet[6], packet[7]) = (checksum[0], checksum[1]);
 
         packet
     }

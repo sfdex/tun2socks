@@ -29,7 +29,7 @@ pub fn main(fd: c_int, log_path: *const c_char) {
                 logging.i("reach end".to_string());
             }
             Ok(n) => {
-                let datagram = &buf[4..n];
+                let datagram = &buf[..n];
                 if n < 20 {
                     logging.e(format!("error internet datagram(len[{n}]): {:?}", datagram));
                     continue;

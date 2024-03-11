@@ -120,7 +120,7 @@ impl Tcp {
         header.extend_from_slice(&pack);
 
         // Set header checksum
-        let checksum = Datagram::calc_checksum(&pack);
+        let checksum = Datagram::calc_checksum(&header);
         (pack[16], pack[17]) = (checksum[0], checksum[1]);
 
         // Add payload
