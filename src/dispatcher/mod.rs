@@ -67,11 +67,14 @@ pub fn dispatch(data: Vec<u8>, id: u32, stream: &mut File, logging: &mut Logging
         Protocol::UDP => {
             let udp = Udp::new(&datagram.payload);
             logging.i(udp.info());
+            
+            let mut msg = Vec::new();
+            msg.extend_from_slice("Hello ".as_bytes());
+            msg.extend_from_slice(&udp.payload);
 
-            let payload = "hello net".as_bytes();
             // Invalid argument (os error 22)
             // let ip_packet = udp.pack(&mut pseudo_header, &payload);
-            let ip_packet = datagram.pack(&udp.pack(&mut pseudo_header, &payload));
+            let ip_packet = datagram.pack(&udp.pack(&mut pseudo_header, &msg));
             logging.i(format!("Respond to udp({id}), len({}), packet: {:?}", &ip_packet.len(), &ip_packet));
 
             match stream.write(&ip_packet) {

@@ -12,3 +12,4 @@ name = "tun2socks_rust"
 [dependencies]
 #trust-dns-resolver = "0.23.2"
 #log = "0.4.20"
+tun = "0.6.1"
