@@ -125,7 +125,6 @@ impl Datagram {
     }
 
     pub fn calc_checksum(header: &[u8]) -> [u8; 2] {
-        println!("header: {:?}", header);
         let mut binary_u16_segments = vec![];
         // Merge two u8 to u16
         for i in (0..header.len()).step_by(2) {
@@ -172,10 +171,12 @@ impl Datagram {
 
         // Packet information(LittleEndian): flags(u16) and protocol(u16)
         #[cfg(any(target_os = "macos", target_os = "ios"))]
-        packet.insert(0, 0);
-        packet.insert(1, 0);
-        packet.insert(2, 0);
-        packet.insert(3, 2); // IPv4
+        {
+            packet.insert(0, 0);
+            packet.insert(1, 0);
+            packet.insert(2, 0);
+            packet.insert(3, 2); // IPv4
+        }
         
         println!("packet: {:?}", packet);
         

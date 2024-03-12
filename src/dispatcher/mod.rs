@@ -3,6 +3,7 @@ use std::io::Write;
 use std::net::IpAddr;
 use std::time::SystemTime;
 use crate::dispatcher::direct::dial_tcp;
+use crate::logging;
 use crate::logging::Logging;
 use crate::protocol::internet::{Datagram, Protocol, PseudoHeader, tcp};
 use crate::protocol::internet::icmp::{Echo, Icmp};
@@ -44,7 +45,9 @@ pub fn dispatch(data: Vec<u8>, id: u32, stream: &mut File, logging: &mut Logging
             logging.i(tcp.info());
             match tcp.control_type() {
                 SYN => {
-                    let ip_packet = datagram.pack(&tcp.pack(id, 0b010010, vec![], &mut pseudo_header));
+                    let tcp_syn_response = tcp.pack(id, 0b010010, vec![], &mut pseudo_header);
+                    logging.i(format!("tcp_syn_response: {}", Tcp::new(&tcp_syn_response).info()));
+                    let ip_packet = datagram.pack(&tcp_syn_response);
                     logging.i(format!("Respond to tcp({id}), len({}), packet: {:?}", &ip_packet.len(), &ip_packet));
 
                     match stream.write(&ip_packet) {
@@ -73,8 +76,6 @@ pub fn dispatch(data: Vec<u8>, id: u32, stream: &mut File, logging: &mut Logging
             msg.extend_from_slice("Hello ".as_bytes());
             msg.extend_from_slice(&udp.payload);
 
-            // Invalid argument (os error 22)
-            // let ip_packet = udp.pack(&mut pseudo_header, &payload);
             let ip_packet = datagram.pack(&udp.pack(&mut pseudo_header, &msg));
             logging.i(format!("Respond to udp({id}), len({}), packet: {:?}", &ip_packet.len(), &ip_packet));
 

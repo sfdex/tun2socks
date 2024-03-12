@@ -82,17 +82,31 @@ impl Tcp {
         let mut pack = Vec::new();
         let header = &self.header;
 
-        let mut seq_no = bytes_to_u32(&header.seq_no);
-        if seq_no == 0 {
-            seq_no = 1;
+        let mut ack_no:u32 = bytes_to_u32(&header.seq_no);
+        println!("ack_no1: {ack_no}");
+        let ack_no = if ack_no == 0 {
+            1
         } else {
-            seq_no = seq_no + 1
-        }
+            ack_no + 1
+        };
+        // todo!(bytes_to_u32(&ack_no.to_be_bytes()) != ack_no)
+        println!("ack_no2: {ack_no}");
+        println!("seq_no bytes: {:?}", &header.seq_no);
+        println!("ack_no bytes1: {:?}", ack_no.to_be_bytes());
+        println!("ack_no3: {:?}", bytes_to_u32(&ack_no.to_be_bytes()));
+        /**
+        ack_no1: 2449530702
+        ack_no2: 2449530703
+        seq_no bytes: [109, 146, 223, 78]
+        ack_no bytes1: [146, 0, 223, 79]
+        ack_no3: 57167
+        */
+
 
         pack.extend_from_slice(&header.dst_port);
         pack.extend_from_slice(&header.src_port);
         pack.extend_from_slice(&(3001u32.to_be_bytes()));
-        pack.extend_from_slice(&seq_no.to_be_bytes());
+        pack.extend_from_slice(&(ack_no.to_be_bytes()));
         pack.extend_from_slice(&[0, flags, header.window[0], header.window[1]]);
         pack.extend_from_slice(&[0, 0, header.urgent_pointer[0], header.urgent_pointer[1]]);
 
