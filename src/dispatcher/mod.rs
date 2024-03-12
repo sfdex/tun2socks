@@ -5,6 +5,7 @@ use std::time::SystemTime;
 use crate::dispatcher::direct::dial_tcp;
 use crate::logging::Logging;
 use crate::protocol::internet::{Datagram, Protocol, PseudoHeader, tcp};
+use crate::protocol::internet::icmp::{Echo, Icmp};
 use crate::protocol::internet::tcp::Tcp;
 use crate::protocol::internet::tcp::ControlType::*;
 use crate::protocol::internet::udp::Udp;
@@ -67,7 +68,7 @@ pub fn dispatch(data: Vec<u8>, id: u32, stream: &mut File, logging: &mut Logging
         Protocol::UDP => {
             let udp = Udp::new(&datagram.payload);
             logging.i(udp.info());
-            
+
             let mut msg = Vec::new();
             msg.extend_from_slice("Hello ".as_bytes());
             msg.extend_from_slice(&udp.payload);
@@ -89,7 +90,19 @@ pub fn dispatch(data: Vec<u8>, id: u32, stream: &mut File, logging: &mut Logging
             logging.d("UDP end\n\n".to_string());
         }
         Protocol::ICMP => {
-            logging.e("Unsupported ICMP protocol".to_string())
+            let icmp: Icmp<Echo> = Icmp::new(&datagram.payload);
+            let response = icmp.pack();
+            let ip_packet = datagram.pack(&response);
+            match stream.write(&ip_packet) {
+                Ok(n) => {
+                    logging.i(format!("Respond to icmp({id}), size({n})"));
+                }
+                Err(err) => {
+                    logging.e(format!("Response to icmp({id}) error: {:?}", err))
+                }
+            }
+
+            logging.d("ICMP end\n\n".to_string());
         }
         Protocol::UNKNOWN => {
             logging.e("Unsupported unknown protocol".to_string())

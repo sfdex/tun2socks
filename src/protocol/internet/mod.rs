@@ -2,6 +2,7 @@ use crate::util::bytes_to_u32;
 
 pub mod tcp;
 pub mod udp;
+pub mod icmp;
 
 /**
 Assigned Internet Protocol Numbers
@@ -151,6 +152,7 @@ impl Datagram {
     pub fn pack(&self, payload: &[u8]) -> Vec<u8>{
         let mut packet = Vec::new();
         let header = &self.header;
+        
         packet.extend_from_slice(&[header.version_ihl, header.dscp_ecn, 0, 0]);
         packet.extend_from_slice(&[0, 0, header.flags_fragment_offset[0], header.flags_fragment_offset[1]]);
         packet.extend_from_slice(&[header.ttl, header.protocol, 0, 0]);
@@ -168,6 +170,15 @@ impl Datagram {
         let checksum = Self::calc_checksum(&packet[..(packet.len() - payload.len())]);
         (packet[10], packet[11]) = (checksum[0], checksum[1]);
 
+        // Packet information(LittleEndian): flags(u16) and protocol(u16)
+        #[cfg(any(target_os = "macos", target_os = "ios"))]
+        packet.insert(0, 0);
+        packet.insert(1, 0);
+        packet.insert(2, 0);
+        packet.insert(3, 2); // IPv4
+        
+        println!("packet: {:?}", packet);
+        
         packet
     }
 }
