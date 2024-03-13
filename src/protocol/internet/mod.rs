@@ -144,6 +144,8 @@ impl Datagram {
             }
         }
 
+        println!("Header: {:?}", header);
+
         // Bitwise and to bytes
         (!checksum).to_be_bytes()
     }
@@ -177,8 +179,6 @@ impl Datagram {
             packet.insert(2, 0);
             packet.insert(3, 2); // IPv4
         }
-        
-        println!("packet: {:?}", packet);
         
         packet
     }

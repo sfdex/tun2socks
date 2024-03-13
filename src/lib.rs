@@ -22,6 +22,7 @@ mod tests {
     use std::fs::File;
     use crate::logging::Logging;
     use crate::protocol::internet::Datagram;
+    use crate::util::bytes_to_u32;
     use super::*;
 
     #[test]
@@ -41,7 +42,7 @@ mod tests {
         assert_eq!(16777215u32.to_be_bytes(), [0, 255, 255, 255]);
         // assert_eq!(util::u16_to_bytes(65535), [255, 255]);
     }
-    
+
     #[test]
     fn bytes_to_int() {
         assert_eq!(util::bytes_to_u32(&[248, 139, 81, 202]), 4169880010);
@@ -52,7 +53,7 @@ mod tests {
         let datagram = [];
         let mut stream = File::create("build/stream.txt").unwrap();
         let mut logging = Logging::new("build/logging.txt");
-        tun::handle_datagram(&datagram, 1, &mut stream, &mut logging);
+        tun::handle_datagram(&datagram, &mut stream, &mut logging);
         assert_eq!(2 + 2, 4);
     }
 
@@ -78,5 +79,18 @@ mod tests {
         (header[28], header[29]) = (0, 0);
         let checksum = Datagram::calc_checksum(&header);
         assert_eq!(checksum, [42, 67]);
+    }
+
+    #[test]
+    fn tcp_checksum_blank() {
+        let mut bytes = [10, 0, 0, 9, 10, 0, 0, 1, 0, 6, 0, 39, 0, 203, 224, 29, 0, 0, 11, 186, 92, 86, 72, 118, 128, 24, 8, 10, 0, 0, 0, 0, 1, 1, 8, 10, 0, 0, 0, 0, 10, 137, 175, 229];
+        println!("bytes: len({})", bytes.len());
+        let rs = Datagram::verify_checksum(&bytes.to_vec());
+        // assert_eq!(rs, true);
+        println!("src checksum: {:?}", &bytes[28..30]);
+        (bytes[28], bytes[29]) = (0, 0);
+        let checksum = Datagram::calc_checksum(&bytes.to_vec());
+        println!("dst checksum: {:?}, hex({:x})", checksum, (bytes_to_u32(&checksum) as u16));
+        assert_eq!(checksum, [34, 152]);
     }
 }

@@ -38,10 +38,8 @@ pub fn main(fd: c_int, log_path: *const c_char) {
                     logging.e(format!("error internet datagram(len[{n}]): {:?}", datagram));
                     continue;
                 }
-
-                let id = time.elapsed().unwrap().as_millis() as u32;
-
-                handle_datagram(&datagram, id, &mut stream, &mut logging);
+                
+                handle_datagram(&datagram, &mut stream, &mut logging);
             }
             Err(err) => {
                 if err.kind() != last_err.kind() {
@@ -54,8 +52,8 @@ pub fn main(fd: c_int, log_path: *const c_char) {
     }
 }
 
-pub fn handle_datagram(datagram: &[u8], id: u32, stream: &mut File, logging: &mut Logging) {
-    logging.i(format!("Datagram: len({}), {:?}", (&datagram).len(), &datagram));
+pub fn handle_datagram(datagram: &[u8], stream: &mut File, logging: &mut Logging) {
+    logging.i(format!("--->> Recv: len({}), {:?}", (&datagram).len(), &datagram));
 
     // msg[0] & 4 == 4 #ipv4
     // msg[0] & 6 == 6 #ipv6
@@ -69,7 +67,7 @@ pub fn handle_datagram(datagram: &[u8], id: u32, stream: &mut File, logging: &mu
 
             let s = thread::spawn(move || {
                 // let result = panic::catch_unwind(|| {
-                crate::dispatcher::dispatch(data, id, &mut copy_stream, &mut copy_logging);
+                crate::dispatcher::dispatch(data, &mut copy_stream, &mut copy_logging);
                 // });
                 // if let Err(err) = result {
                 //     copy_logging.e(format!("Error on thread: {:?}", err));

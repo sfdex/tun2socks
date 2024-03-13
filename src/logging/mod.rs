@@ -1,7 +1,5 @@
-use std::fmt::Debug;
 use std::fs::{File, OpenOptions};
 use std::io::Write;
-use std::str::FromStr;
 use std::time::{Duration, Instant, SystemTime};
 
 // #[derive(Copy, Clone)]
@@ -19,7 +17,6 @@ impl Logging {
     fn writeln(&mut self, level: &str, content: String) {
         let elapsed = self.elapsed();
         writeln!(&mut self.file, "{:?} {level}: {}", elapsed, content).unwrap();
-        // println!("{:?} {level}: {}", elapsed, content);
     }
 
     pub fn v(&mut self, content: String) {
