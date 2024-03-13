@@ -41,6 +41,11 @@ mod tests {
         assert_eq!(16777215u32.to_be_bytes(), [0, 255, 255, 255]);
         // assert_eq!(util::u16_to_bytes(65535), [255, 255]);
     }
+    
+    #[test]
+    fn bytes_to_int() {
+        assert_eq!(util::bytes_to_u32(&[248, 139, 81, 202]), 4169880010);
+    }
 
     #[test]
     fn datagram_tcp() {

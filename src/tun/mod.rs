@@ -30,6 +30,10 @@ pub fn main(fd: c_int, log_path: *const c_char) {
             }
             Ok(n) => {
                 let datagram = &buf[..n];
+                
+                #[cfg(any(target_os = "macos", target_os = "ios"))]
+                let datagram = &buf[4..n];
+                
                 if n < 20 {
                     logging.e(format!("error internet datagram(len[{n}]): {:?}", datagram));
                     continue;

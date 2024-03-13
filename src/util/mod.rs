@@ -3,7 +3,7 @@ pub fn bytes_to_u32(bytes: &[u8]) -> u32 {
     let mut mv = bytes.len();
     for byte in bytes {
         mv = mv - 1;
-        result = result + ((*byte) as u32) << mv * 8;
+        result = result + (((*byte) as u32) << mv * 8);
     };
     result
 }
