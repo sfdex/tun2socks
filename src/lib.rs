@@ -83,14 +83,14 @@ mod tests {
 
     #[test]
     fn tcp_checksum_blank() {
-        let mut bytes = [10, 0, 0, 9, 10, 0, 0, 1, 0, 6, 0, 39, 0, 203, 224, 29, 0, 0, 11, 186, 92, 86, 72, 118, 128, 24, 8, 10, 0, 0, 0, 0, 1, 1, 8, 10, 0, 0, 0, 0, 10, 137, 175, 229];
+        let mut bytes = [10, 0, 0, 1, 10, 0, 0, 9, 0, 6, 0, 34, 156, 108, 0, 203, 81, 127, 41, 26, 0, 0, 11, 186, 128, 24, 1, 246, 176, 23, 0, 0, 1, 1, 8, 10, 176, 3, 121, 24, 0, 0, 2, 235, 97, 10];
         println!("bytes: len({})", bytes.len());
         let rs = Datagram::verify_checksum(&bytes.to_vec());
-        // assert_eq!(rs, true);
+        assert_eq!(rs, true);
         println!("src checksum: {:?}", &bytes[28..30]);
         (bytes[28], bytes[29]) = (0, 0);
         let checksum = Datagram::calc_checksum(&bytes.to_vec());
         println!("dst checksum: {:?}, hex({:x})", checksum, (bytes_to_u32(&checksum) as u16));
-        assert_eq!(checksum, [34, 152]);
+        assert_eq!(checksum, [176, 23]);
     }
 }

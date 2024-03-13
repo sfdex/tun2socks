@@ -38,13 +38,13 @@ impl Tcp {
     pub fn new(bytes: &[u8]) -> Self {
         let data_offset = (bytes[12] >> 4 & 0b1111) as usize;
         let data_begin_idx = data_offset * 4;
-        
+
         let options_bytes = bytes[20..data_begin_idx].to_vec();
         let mut options = Vec::new();
         let mut option_idx = 0usize;
         loop {
             if option_idx >= options_bytes.len() { break; }
-            
+
             let kind = options_bytes[option_idx];
             if kind == 1 || kind == 0 { // A No-Operation Option: This option code can be used between options
                 option_idx = option_idx + 1;
@@ -90,14 +90,15 @@ impl Tcp {
         } else {
             seq_no
         };
-        
+
         let ack_no:u32 = bytes_to_u32(&header.seq_no);
         let ack_no = if ack_no == 0 {
             1
-        } else {
+        } else if self.payload.len() > 0{
+            ack_no + self.payload.len() as u32
+        }else {
             ack_no + 1
         };
-
 
         pack.extend_from_slice(&header.dst_port);
         pack.extend_from_slice(&header.src_port);
@@ -125,16 +126,17 @@ impl Tcp {
         let offset = (pack.len() as u8 / 4) << 4;
         pack[12] = offset;
 
-        pseudo_header.length = ((pack.len() + payload.len()) as u16).to_be_bytes();
+        // Add payload
+        pack.extend_from_slice(&payload);
+
+        pseudo_header.length = (pack.len() as u16).to_be_bytes();
         let mut header = pseudo_header.to_be_bytes();
         header.extend_from_slice(&pack);
 
         // Set header checksum
+        if header.len() % 2 != 0 { header.push(0) }
         let checksum = Datagram::calc_checksum(&header);
         (pack[16], pack[17]) = (checksum[0], checksum[1]);
-
-        // Add payload
-        pack.extend_from_slice(&payload);
 
         pack
     }
@@ -155,7 +157,7 @@ impl Tcp {
                 ControlType::SACK
             } else if is_psh {
                 ControlType::PUSH
-            } else if is_fin { 
+            } else if is_fin {
                 ControlType::FIN
             } else if is_rst {
                 ControlType::RST
@@ -183,19 +185,20 @@ impl Tcp {
         let flags = &header.control_flags;
         info.push_str(&format!(
             "\tCWR:{}, ECE:{}, URG:{}, ACK:{}, PSH:{}, RST:{}, SYN:{}, FIN:{}\n",
-            (flags & (1 << 7)) >> 7, (flags & (1 << 6)) >> 6, (flags & (1 << 5)) >> 5, (flags & (1 << 4)) >> 4, 
+            (flags & (1 << 7)) >> 7, (flags & (1 << 6)) >> 6, (flags & (1 << 5)) >> 5, (flags & (1 << 4)) >> 4,
             (flags & (1 << 3)) >> 3, (flags & (1 << 2)) >> 2, (flags & (1 << 1)) >> 1, flags & 1
         ));
         info.push_str(&format!("\tcontrol type: {:?}\n", self.control_type()));
 
-        info.push_str("\t---options---\n");
+        info.push_str("\t---<options>---\n");
         for option in &header.options {
             info.push_str(&format!("\tkind:{}, length:{}, data:{:?}\n", option.kind, option.length, option.data));
             if option.kind == 8 {
                 info.push_str(&format!("\t\tTimestamp: TSVal({}), TSecr({})\n", bytes_to_u32(&option.data[0..4]), bytes_to_u32(&option.data[4..8])));
             };
         }
-        info.push_str(&format!("\tdata: len({})\n\t\t{:?}\n", &self.payload.len(), &self.payload));
+        info.push_str("\t---<options>---\n");
+        info.push_str(&format!("\tdata: len({})\n {:?}\n", &self.payload.len(), &self.payload));
 
         info
     }

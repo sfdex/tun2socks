@@ -144,8 +144,6 @@ impl Datagram {
             }
         }
 
-        println!("Header: {:?}", header);
-
         // Bitwise and to bytes
         (!checksum).to_be_bytes()
     }
