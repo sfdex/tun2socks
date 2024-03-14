@@ -1,5 +1,7 @@
 use crate::protocol::internet::{Packet, Protocol};
+use crate::protocol::internet::icmp::Icmp;
 use crate::protocol::internet::tcp::*;
+use crate::protocol::internet::udp::Udp;
 
 pub struct Simulator;
 
@@ -12,7 +14,7 @@ impl Simulator {
             Protocol::UNKNOWN => { vec![vec![]] }
         };
     }
-    
+
     fn handle_tcp(tcp: &Box<dyn Packet>) -> Vec<Vec<u8>> {
         return match tcp.flags_type() {
             SYN | SEW => {

@@ -4,6 +4,7 @@ use std::net::IpAddr;
 use crate::dispatcher::simulator::Simulator;
 use crate::logging::Logging;
 use crate::protocol::internet::{Datagram, Protocol, Packet, PseudoHeader};
+use crate::protocol::internet::icmp::Icmp;
 use crate::protocol::internet::tcp::Tcp;
 use crate::protocol::internet::udp::Udp;
 use crate::util::{bytes_to_u32, bytes_to_u32_no_prefix};
@@ -76,7 +77,9 @@ fn build_packet(protocol: &Protocol, data: &[u8], pseudo_header: PseudoHeader) -
         Protocol::UDP => {
             Box::new(Udp::new(data, pseudo_header))
         }
-        // Protocol::ICMP => {}
+        Protocol::ICMP => {
+            Box::new(Icmp::new(data))
+        }
         // Protocol::UNKNOWN => {}
         _=> {
             Box::new(Udp::new(data, pseudo_header))
