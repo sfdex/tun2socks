@@ -1,11 +1,31 @@
+use crate::protocol::internet::tcp::FlagsType;
 use crate::util::bytes_to_u32;
 
 pub mod tcp;
 pub mod udp;
 pub mod icmp;
 
-/**
-Assigned Internet Protocol Numbers
+/*
+   Internet Header Format
+
+    0                   1                   2                   3
+    0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1 2 3 4 5 6 7 8 9 0 1
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |Version|  IHL  |Type of Service|          Total Length         |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |         Identification        |Flags|      Fragment Offset    |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |  Time to Live |    Protocol   |         Header Checksum       |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                       Source Address                          |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                    Destination Address                        |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+   |                    Options                    |    Padding    |
+   +-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+-+
+
+
+   Assigned Internet Protocol Numbers
 
       Decimal    Octal      Protocol Numbers                  References
       -------    -----      ----------------                  ----------
@@ -62,6 +82,18 @@ pub struct Header {
     pub options: Vec<u8>,
 }
 
+/*
+                          IPv4 Pseudo-header
+                +--------+--------+--------+--------+
+                |           Source Address          |
+                +--------+--------+--------+--------+
+                |         Destination Address       |
+                +--------+--------+--------+--------+
+                |  zero  |  PTCL  |  Payload Length |
+                +--------+--------+--------+--------+
+ */
+
+#[derive(Debug, Copy, Clone)]
 pub struct PseudoHeader {
     pub src_ip: [u8; 4],
     pub dst_ip: [u8; 4],
@@ -202,3 +234,13 @@ pub enum Protocol{
     ICMP,
     UNKNOWN,
 }
+
+pub trait Packet {
+    fn payload(&self) -> &Vec<u8>;
+    fn flags_type(&self) -> FlagsType { return FlagsType(0) }
+    fn info(&self) -> String;
+    fn pack(&self, options: &[u8], payload: &[u8]) -> Vec<u8>;
+    // fn handle(&self, ip_packet: &[u8], f: &mut File, logging: &mut Logging, x: T) -> Result<usize>;
+}
+
+// fn new(pkt: &[u8], pseudo_header: PseudoHeader) -> Self;

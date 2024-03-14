@@ -1,9 +1,26 @@
-use crate::protocol::internet::{Datagram, PseudoHeader};
+use crate::protocol::internet::{Datagram, Packet, PseudoHeader};
 use crate::util::bytes_to_u32;
 
+/*
+                      User Datagram Header Format
+                      
+                  0      7 8     15 16    23 24    31
+                 +--------+--------+--------+--------+
+                 |     Source      |   Destination   |
+                 |      Port       |      Port       |
+                 +--------+--------+--------+--------+
+                 |                 |                 |
+                 |     Length      |    Checksum     |
+                 +--------+--------+--------+--------+
+                 |                                   :
+                 :               Data                :
+                 :                                   |
+                 +------------------+--------+-------+
+ */
 pub struct Udp {
-    pub header: Header,
-    pub payload: Vec<u8>,
+    header: Header,
+    pseudo_header: PseudoHeader,
+    payload: Vec<u8>,
 }
 
 struct Header {
@@ -14,7 +31,7 @@ struct Header {
 }
 
 impl Udp {
-    pub fn new(bytes: &[u8]) -> Self {
+    pub fn new(bytes: &[u8], pseudo_header: PseudoHeader) -> Self {
         Self {
             header: Header {
                 src_port: [bytes[0], bytes[1]],
@@ -22,11 +39,18 @@ impl Udp {
                 length: [bytes[4], bytes[5]],
                 checksum: [bytes[6], bytes[7]],
             },
+            pseudo_header,
             payload: bytes[8..bytes.len()].to_vec(),
         }
     }
+}
 
-    pub fn info(&self) -> String {
+impl Packet for Udp {
+    fn payload(&self) -> &Vec<u8> {
+        &self.payload
+    }
+
+    fn info(&self) -> String {
         let mut info = String::new();
         info.push_str("UDP info:\n");
         info.push_str(&format!("\tPort({}) => Port({})\n", bytes_to_u32(&self.header.src_port), bytes_to_u32(&self.header.dst_port)));
@@ -34,7 +58,7 @@ impl Udp {
         info
     }
 
-    pub fn pack(&self, pseudo_header: &mut PseudoHeader, payload: &[u8]) -> Vec<u8> {
+    fn pack(&self, _: &[u8], payload: &[u8]) -> Vec<u8> {
         let mut packet = Vec::new();
         packet.extend_from_slice(&self.header.dst_port);
         packet.extend_from_slice(&self.header.src_port);
@@ -46,8 +70,8 @@ impl Udp {
         packet.extend_from_slice(&payload);
 
         // Checksum
-        pseudo_header.length = length;
-        let mut header = pseudo_header.to_be_bytes();
+        let mut header = self.pseudo_header.to_be_bytes();
+        (header[10], header[11]) = (length[0], length[1]); // Set length
         header.extend_from_slice(&packet[..packet.len()]);
         if header.len() % 2 != 0 { header.push(0); }
         let checksum = Datagram::calc_checksum(&header);
