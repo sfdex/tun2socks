@@ -12,6 +12,8 @@ pub mod logging;
 
 pub mod util;
 
+pub mod thread_pool;
+
 #[no_mangle]
 pub extern "C" fn tun2socks(fd: c_int, log_path: *const c_char) {
     tun::main(fd, log_path);
