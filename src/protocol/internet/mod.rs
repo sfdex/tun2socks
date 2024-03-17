@@ -1,3 +1,4 @@
+use std::net::Ipv4Addr;
 use crate::protocol::internet::tcp::FlagsType;
 use crate::util::bytes_to_u32;
 
@@ -74,10 +75,16 @@ pub struct Datagram {
 }
 
 pub struct Header {
-    pub version_ihl: u8, pub dscp_ecn: u8, pub total_length: [u8; 2],
-    pub identification: [u8; 2], pub flags_fragment_offset: [u8; 2],
-    pub ttl: u8, pub protocol: u8, pub checksum: [u8; 2],
-    pub src_ip: [u8; 4], pub dst_ip: [u8; 4],
+    pub version_ihl: u8,
+    pub dscp_ecn: u8,
+    pub total_length: [u8; 2],
+    pub identification: [u8; 2],
+    pub flags_fragment_offset: [u8; 2],
+    pub ttl: u8,
+    pub protocol: u8,
+    pub checksum: [u8; 2],
+    pub src_ip: [u8; 4],
+    pub dst_ip: [u8; 4],
     // options: [u8],
     pub options: Vec<u8>,
 }
@@ -138,7 +145,7 @@ impl Datagram {
         }
     }
 
-    pub fn protocol(&self) -> Protocol{
+    pub fn protocol(&self) -> Protocol {
         return match self.header.protocol {
             1 => Protocol::ICMP,
             6 => Protocol::TCP,
@@ -180,10 +187,10 @@ impl Datagram {
         (!checksum).to_be_bytes()
     }
 
-    pub fn pack(&self, payload: &[u8]) -> Vec<u8>{
+    pub fn pack(&self, payload: &[u8]) -> Vec<u8> {
         let mut packet = Vec::new();
         let header = &self.header;
-        
+
         packet.extend_from_slice(&[header.version_ihl, header.dscp_ecn, 0, 0]);
         packet.extend_from_slice(&[0, 0, header.flags_fragment_offset[0], header.flags_fragment_offset[1]]);
         packet.extend_from_slice(&[header.ttl, header.protocol, 0, 0]);
@@ -209,13 +216,24 @@ impl Datagram {
             packet.insert(2, 0);
             packet.insert(3, 2); // IPv4
         }
-        
+
         packet
+    }
+
+    pub fn name(&self) -> String {
+        let protocol = self.protocol();
+        let ip = Ipv4Addr::from(self.header.dst_ip);
+        let port = match protocol {
+            Protocol::TCP => { bytes_to_u32(&self.payload[2..4]) }
+            Protocol::UDP => { bytes_to_u32(&self.payload[2..4]) }
+            _ => { 0 }
+        };
+        format!("{:?}[{}]:{}", protocol, ip, port)
     }
 }
 
 impl PseudoHeader {
-    pub fn to_be_bytes(&self) -> Vec<u8>{
+    pub fn to_be_bytes(&self) -> Vec<u8> {
         let mut bytes = Vec::new();
         bytes.extend_from_slice(&self.src_ip);
         bytes.extend_from_slice(&self.dst_ip);
@@ -228,7 +246,7 @@ impl PseudoHeader {
 }
 
 #[derive(Debug)]
-pub enum Protocol{
+pub enum Protocol {
     TCP,
     UDP,
     ICMP,
@@ -237,7 +255,7 @@ pub enum Protocol{
 
 pub trait Packet {
     fn payload(&self) -> &Vec<u8>;
-    fn flags_type(&self) -> FlagsType { return FlagsType(0) }
+    fn flags_type(&self) -> FlagsType { return FlagsType(0); }
     fn info(&self) -> String;
     fn pack(&self, options: &[u8], payload: &[u8]) -> Vec<u8>;
     // fn handle(&self, ip_packet: &[u8], f: &mut File, logging: &mut Logging, x: T) -> Result<usize>;
