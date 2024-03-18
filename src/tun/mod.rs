@@ -3,9 +3,12 @@ use std::fs::File;
 use std::io::{Error, ErrorKind, Read};
 use std::os::fd::{AsRawFd, FromRawFd, RawFd};
 use std::os::raw::c_int;
+use std::sync::{Arc, mpsc, Mutex};
 use std::thread;
 use std::time::SystemTime;
 use crate::logging::Logging;
+use crate::protocol::internet::Datagram;
+use crate::thread_pool::ThreadPool;
 
 const MTU: usize = 1500;
 
@@ -23,23 +26,42 @@ pub fn main(fd: c_int, log_path: *const c_char) {
     let mut stream = unsafe { File::from_raw_fd(raw_fd) };
     let mut buf = vec![0; MTU]; // Usual internet header length
     let mut last_err = Error::new(ErrorKind::InvalidInput, "Oh no");
+
+    let (reporter, state_receiver) = mpsc::channel();
+    let pool = ThreadPool::new(10, Arc::new(Mutex::new(reporter)));
+    let mut cloned_stream = stream.try_clone().unwrap();
+    
+    thread::spawn(move || {
+        ThreadPool::run(&mut cloned_stream, state_receiver);
+    });
+    
     loop {
         match stream.read(&mut buf) {
             Ok(0) => {
                 logging.i("reach end".to_string());
             }
             Ok(n) => {
-                let datagram = &buf[..n];
-                
+                let bytes = &buf[..n];
+
                 #[cfg(any(target_os = "macos", target_os = "ios"))]
-                let datagram = &buf[4..n];
-                
+                    let bytes = &buf[4..n];
+
                 if n < 20 {
-                    logging.e(format!("error internet datagram(len[{n}]): {:?}", datagram));
+                    logging.e(format!("error internet datagram(len[{n}]): {:?}", bytes));
                     continue;
                 }
-                
-                handle_datagram(&datagram, &mut stream, &mut logging);
+
+                // handle_datagram(&bytes, &mut stream, &mut logging);
+
+                let version = (bytes[0] >> 4) & 0b1111;
+                if version != 4 {
+                    logging.w("Unsupported version ipv6".to_string());
+                    continue;
+                };
+
+                let datagram = Datagram::new(&bytes);
+                ThreadPool::execute(datagram);
+                // tx.send(datagram).unwrap();
             }
             Err(err) => {
                 if err.kind() != last_err.kind() {
@@ -50,6 +72,8 @@ pub fn main(fd: c_int, log_path: *const c_char) {
             }
         }
     }
+
+    // pool.run();
 }
 
 pub fn handle_datagram(datagram: &[u8], stream: &mut File, logging: &mut Logging) {

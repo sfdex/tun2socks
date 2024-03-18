@@ -1,0 +1,31 @@
+use std::thread;
+use crate::thread_pool::{Receiver, Reporter, Sender};
+use crate::thread_pool::handler::Handler;
+use crate::thread_pool::state::State;
+
+pub struct Worker {
+    pub name: String,
+    thread: Option<thread::JoinHandle<()>>,
+    pub sender: Sender,
+    pub state: State,
+}
+
+impl Worker {
+    pub fn new(id: usize, reporter: Reporter, tx: Sender, rx: Receiver) -> Self {
+        let thread = thread::spawn(move || {
+            println!("thread{id}::spawn start");
+            let mut handler = Handler::new(id, reporter);
+            for msg in rx {
+                handler.handle(msg);
+            }
+            println!("thread{id}::spawn End");
+        });
+
+        Self {
+            name: "".to_string(),
+            thread: Some(thread),
+            sender: tx,
+            state: State::IDLE,
+        }
+    }
+}

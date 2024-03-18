@@ -15,7 +15,7 @@ impl Simulator {
         };
     }
 
-    fn handle_tcp(tcp: &Box<dyn Packet>) -> Vec<Vec<u8>> {
+    pub fn handle_tcp(tcp: &Box<dyn Packet>) -> Vec<Vec<u8>> {
         return match tcp.flags_type() {
             SYN | SEW => {
                 let response = tcp.pack(&[*SYN_ACK], &vec![]);
@@ -52,7 +52,7 @@ impl Simulator {
         // let result = dial_tcp(addr, port, &[1u8]);
     }
 
-    fn handle_udp(udp: &Box<dyn Packet>) -> Vec<Vec<u8>> {
+    pub fn handle_udp(udp: &Box<dyn Packet>) -> Vec<Vec<u8>> {
         let mut msg = Vec::new();
         msg.extend_from_slice("Hello ".as_bytes());
         msg.extend_from_slice(&udp.payload());
