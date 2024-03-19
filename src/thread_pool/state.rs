@@ -3,10 +3,10 @@ use crate::thread_pool::Message;
 pub struct StateMessage(pub usize, pub State);
 
 pub enum State {
-    MESSAGE(Message),
-    TCP { name: String, state: TcpState },
-    UDP { name: String, state: UdpState },
-    ICMP { name: String, state: IcmpState },
+    MESSAGE(u8, Message),
+    TCP(String, TcpState),
+    UDP(String, UdpState),
+    ICMP(String, IcmpState),
     IDLE,
 }
 

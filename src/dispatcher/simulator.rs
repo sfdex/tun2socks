@@ -5,8 +5,9 @@ use crate::protocol::internet::udp::Udp;
 
 pub struct Simulator;
 
+type Pkt = Box<dyn Packet + Send + Sync>;
 impl Simulator {
-    pub fn handle(protocol: &Protocol, packet: &Box<dyn Packet>) -> Vec<Vec<u8>> {
+    pub fn handle(protocol: &Protocol, packet: &Pkt) -> Vec<Vec<u8>> {
         return match protocol {
             Protocol::TCP => { Self::handle_tcp(packet) }
             Protocol::UDP => { Self::handle_udp(packet) }
@@ -15,7 +16,7 @@ impl Simulator {
         };
     }
 
-    pub fn handle_tcp(tcp: &Box<dyn Packet>) -> Vec<Vec<u8>> {
+    pub fn handle_tcp(tcp: &Pkt) -> Vec<Vec<u8>> {
         return match tcp.flags_type() {
             SYN | SEW => {
                 let response = tcp.pack(&[*SYN_ACK], &vec![]);
@@ -52,15 +53,15 @@ impl Simulator {
         // let result = dial_tcp(addr, port, &[1u8]);
     }
 
-    pub fn handle_udp(udp: &Box<dyn Packet>) -> Vec<Vec<u8>> {
+    pub fn handle_udp(udp: &Pkt) -> Vec<Vec<u8>> {
         let mut msg = Vec::new();
         msg.extend_from_slice("Hello ".as_bytes());
         msg.extend_from_slice(&udp.payload());
-        let response = udp.pack(&[], &msg);
-        vec![response]
+        // let response = udp.pack(&[], &msg);
+        vec![msg]
     }
 
-    fn handle_icmp(icmp: &Box<dyn Packet>) -> Vec<Vec<u8>> {
+    fn handle_icmp(icmp: &Pkt) -> Vec<Vec<u8>> {
         let response = icmp.pack(&[], &vec![]);
         vec![response]
     }

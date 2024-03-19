@@ -37,7 +37,8 @@ pub fn dispatch(data: Vec<u8>, stream: &mut File, logging: &mut Logging) {
 
     let protocol = &datagram.protocol();
 
-    let packet = build_packet(protocol, &datagram.payload, pseudo_header);
+    // let packet = build_packet(protocol, &datagram.payload, pseudo_header);
+    let packet = build_packet(protocol, &[], pseudo_header);
     logging.i(packet.info());
     
     if let Protocol::UNKNOWN = protocol {
@@ -53,7 +54,7 @@ pub fn dispatch(data: Vec<u8>, stream: &mut File, logging: &mut Logging) {
 
     for msg in response {
         logging.i(format!("<<--- Respond {}", build_packet(protocol, &msg, pseudo_header).info()));
-        let ip_packet = datagram.pack(&msg);
+        let ip_packet = datagram.resp_pack(&msg);
         logging.i(format!("<<--- Send: {:?}({id}), len({}), packet: {:?}\n", protocol, &ip_packet.len(), &ip_packet));
 
         match stream.write(&ip_packet) {
@@ -69,7 +70,7 @@ pub fn dispatch(data: Vec<u8>, stream: &mut File, logging: &mut Logging) {
     }
 }
 
-fn build_packet(protocol: &Protocol, data: &[u8], pseudo_header: PseudoHeader) -> Box<dyn Packet> {
+fn build_packet(protocol: &Protocol, data: &[u8], pseudo_header: PseudoHeader) -> Box<dyn Packet + Send + Sync> {
     return match protocol {
         Protocol::TCP => {
             Box::new(Tcp::new(data, pseudo_header))

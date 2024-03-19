@@ -1,5 +1,7 @@
-use std::net::Ipv4Addr;
-use crate::protocol::internet::tcp::FlagsType;
+use std::net::{Ipv4Addr, SocketAddr};
+use crate::protocol::internet::icmp::Icmp;
+use crate::protocol::internet::tcp::{FlagsType, Tcp};
+use crate::protocol::internet::udp::Udp;
 use crate::util::bytes_to_u32;
 
 pub mod tcp;
@@ -71,7 +73,7 @@ pub mod icmp;
 pub struct Datagram {
     pub header: Header,
     pub pseudo_header: PseudoHeader,
-    pub payload: Vec<u8>,
+    pub payload: Box<dyn Packet + Send + Sync>,
 }
 
 pub struct Header {
@@ -123,8 +125,11 @@ impl Datagram {
             src_ip,
             dst_ip,
             protocol,
-            length: (payload.len() as u16).to_be_bytes(),
+            length: [0, 0],
         };
+
+        let protocol = Self::get_protocol(protocol);
+        let payload = Self::build_payload(protocol, pseudo_header, &payload);
 
         Self {
             header: Header {
@@ -145,8 +150,34 @@ impl Datagram {
         }
     }
 
+    fn build_payload(protocol: Protocol, pseudo_header: PseudoHeader, bytes: &[u8]) -> Box<dyn Packet + Send + Sync> {
+        match protocol {
+            Protocol::TCP => {
+                Box::new(Tcp::new(bytes, pseudo_header))
+            }
+            Protocol::UDP => {
+                Box::new(Udp::new(bytes, pseudo_header))
+            }
+            Protocol::ICMP => {
+                Box::new(Icmp::new(bytes))
+            }
+            Protocol::UNKNOWN => {
+                Box::new(Udp::new(bytes, pseudo_header))
+            }
+        }
+    }
+
     pub fn protocol(&self) -> Protocol {
         return match self.header.protocol {
+            1 => Protocol::ICMP,
+            6 => Protocol::TCP,
+            17 => Protocol::UDP,
+            _ => Protocol::UNKNOWN
+        };
+    }
+
+    pub fn get_protocol(byte: u8) -> Protocol {
+        return match byte {
             1 => Protocol::ICMP,
             6 => Protocol::TCP,
             17 => Protocol::UDP,
@@ -187,7 +218,7 @@ impl Datagram {
         (!checksum).to_be_bytes()
     }
 
-    pub fn pack(&self, payload: &[u8]) -> Vec<u8> {
+    pub fn resp_header(&self) -> Vec<u8> {
         let mut packet = Vec::new();
         let header = &self.header;
 
@@ -198,7 +229,13 @@ impl Datagram {
         packet.extend_from_slice(&header.src_ip);
         packet.extend_from_slice(&header.options);
 
-        packet.extend_from_slice(&payload);
+        packet
+    }
+
+    pub fn pack(header: &[u8], payload: &[u8]) -> Vec<u8> {
+        let mut packet = Vec::new();
+        packet.extend_from_slice(header);
+        packet.extend_from_slice(payload);
 
         // Set total length
         let length = (packet.len() as u16).to_be_bytes();
@@ -220,15 +257,20 @@ impl Datagram {
         packet
     }
 
+    pub fn resp_pack(&self, payload: &[u8]) -> Vec<u8> {
+        let header = self.resp_header();
+        Self::pack(&header, payload)
+    }
+
     pub fn name(&self) -> String {
         let protocol = self.protocol();
         let ip = Ipv4Addr::from(self.header.dst_ip);
-        let port = match protocol {
-            Protocol::TCP => { bytes_to_u32(&self.payload[2..4]) }
-            Protocol::UDP => { bytes_to_u32(&self.payload[2..4]) }
-            _ => { 0 }
-        };
+        let port = self.payload.dst_port();
         format!("{:?}[{}]:{}", protocol, ip, port)
+    }
+
+    pub fn update_seq(&mut self, len: u32) {
+        self.payload.update_seq(0);
     }
 }
 
@@ -254,10 +296,13 @@ pub enum Protocol {
 }
 
 pub trait Packet {
+    fn dst_addr(&self) -> SocketAddr;
+    fn dst_port(&self) -> u16 { 0 }
     fn payload(&self) -> &Vec<u8>;
     fn flags_type(&self) -> FlagsType { return FlagsType(0); }
     fn info(&self) -> String;
     fn pack(&self, options: &[u8], payload: &[u8]) -> Vec<u8>;
+    fn update_seq(&mut self, seq: u32) {}
     // fn handle(&self, ip_packet: &[u8], f: &mut File, logging: &mut Logging, x: T) -> Result<usize>;
 }
 

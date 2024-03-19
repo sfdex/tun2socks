@@ -27,12 +27,12 @@ pub fn main(fd: c_int, log_path: *const c_char) {
     let mut buf = vec![0; MTU]; // Usual internet header length
     let mut last_err = Error::new(ErrorKind::InvalidInput, "Oh no");
 
-    let (reporter, state_receiver) = mpsc::channel();
+    let (reporter, events) = mpsc::channel();
     let pool = ThreadPool::new(10, Arc::new(Mutex::new(reporter)));
     let mut cloned_stream = stream.try_clone().unwrap();
     
     thread::spawn(move || {
-        ThreadPool::run(&mut cloned_stream, state_receiver);
+        ThreadPool::run(&mut cloned_stream, events);
     });
     
     loop {

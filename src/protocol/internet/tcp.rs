@@ -1,7 +1,8 @@
 use std::fmt::Display;
+use std::net::SocketAddr;
 use std::ops::Deref;
 use crate::protocol::internet::{Datagram, Packet, PseudoHeader};
-use crate::util::bytes_to_u32;
+use crate::util::{bytes_to_u32, u32_to_bytes};
 
 /*
    TCP Header Format
@@ -37,11 +38,15 @@ pub struct Tcp {
 }
 
 struct Header {
-    pub src_port: [u8; 2], pub dst_port: [u8; 2],
+    pub src_port: [u8; 2],
+    pub dst_port: [u8; 2],
     pub seq_no: [u8; 4],
     pub ack_no: [u8; 4],
-    pub data_offset: u8, pub flags: u8, pub window: [u8; 2],
-    pub checksum: [u8; 2], pub urgent_pointer: [u8; 2],
+    pub data_offset: u8,
+    pub flags: u8,
+    pub window: [u8; 2],
+    pub checksum: [u8; 2],
+    pub urgent_pointer: [u8; 2],
     pub options: Vec<Option>,
 }
 
@@ -90,16 +95,24 @@ impl Tcp {
 
         let payload = bytes[data_begin_idx..].to_vec();
 
-        Self{
+        Self {
             header,
             pseudo_header,
             payload,
-            len: bytes.len()
+            len: bytes.len(),
         }
     }
 }
 
 impl Packet for Tcp {
+    fn dst_addr(&self) -> SocketAddr {
+        SocketAddr::new(self.pseudo_header.dst_ip.into(), bytes_to_u32(&self.header.dst_port) as u16)
+    }
+    
+    fn dst_port(&self) -> u16 {
+        bytes_to_u32(&self.header.dst_port) as u16
+    }
+
     fn payload(&self) -> &Vec<u8> {
         &self.payload
     }
@@ -108,7 +121,7 @@ impl Packet for Tcp {
         FlagsType(self.header.flags)
     }
 
-    fn  info(&self) -> String {
+    fn info(&self) -> String {
         let mut info = String::new();
         let header = &self.header;
         info.push_str("TCP info: \n");
@@ -137,24 +150,24 @@ impl Packet for Tcp {
 
         info
     }
-    
+
     fn pack(&self, flags: &[u8], payload: &[u8]) -> Vec<u8> {
         let mut pack = Vec::new();
         let header = &self.header;
 
-        let seq_no:u32 = bytes_to_u32(&header.ack_no);
+        let seq_no: u32 = bytes_to_u32(&header.ack_no);
         let seq_no = if seq_no == 0 {
             3001
         } else {
             seq_no
         };
 
-        let ack_no:u32 = bytes_to_u32(&header.seq_no);
+        let ack_no: u32 = bytes_to_u32(&header.seq_no);
         let ack_no = if ack_no == 0 {
             1
-        } else if self.payload.len() > 0{
+        } else if self.payload.len() > 0 {
             ack_no + self.payload.len() as u32
-        }else {
+        } else {
             ack_no + 1
         };
 
@@ -198,22 +211,34 @@ impl Packet for Tcp {
 
         pack
     }
+
+    fn update_seq(&mut self, seq: u32) {
+        self.header.seq_no = u32_to_bytes(seq);
+    }
 }
 
 #[derive(PartialEq, Eq)]
 pub struct FlagsType(pub u8);
 
-pub const ACK: FlagsType = FlagsType(0b00010000);       // .
-pub const SYN: FlagsType = FlagsType(0b00000010);       // S
-pub const SEW: FlagsType = FlagsType(0b11000010);       // SEW
-pub const FIN: FlagsType = FlagsType(0b00000001);       // F
-pub const RST: FlagsType = FlagsType(0b00000100);       // R
-pub const SYN_ACK: FlagsType = FlagsType(0b00010010);   // S.
-pub const PSH_ACK: FlagsType = FlagsType(0b00011000);   // P.
-pub const FIN_ACK: FlagsType = FlagsType(0b00010001);   // F.
+pub const ACK: FlagsType = FlagsType(0b00010000);
+// .
+pub const SYN: FlagsType = FlagsType(0b00000010);
+// S
+pub const SEW: FlagsType = FlagsType(0b11000010);
+// SEW
+pub const FIN: FlagsType = FlagsType(0b00000001);
+// F
+pub const RST: FlagsType = FlagsType(0b00000100);
+// R
+pub const SYN_ACK: FlagsType = FlagsType(0b00010010);
+// S.
+pub const PSH_ACK: FlagsType = FlagsType(0b00011000);
+// P.
+pub const FIN_ACK: FlagsType = FlagsType(0b00010001);
+// F.
 pub const RST_ACK: FlagsType = FlagsType(0b00010100);   // R.
 
-impl Deref for FlagsType{
+impl Deref for FlagsType {
     type Target = u8;
 
     fn deref(&self) -> &Self::Target {

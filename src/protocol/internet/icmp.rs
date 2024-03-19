@@ -1,9 +1,11 @@
+use std::net::SocketAddr;
 use crate::protocol::internet::{Datagram, Packet};
+use crate::util::bytes_to_u32;
 
 pub struct Icmp {
     header: Header,
     payload: Vec<u8>,
-    entity: Box<dyn IcmpEntity>,
+    entity: Box<dyn IcmpEntity + Send + Sync>,
 }
 
 struct Header {
@@ -36,6 +38,9 @@ impl Icmp {
 }
 
 impl Packet for Icmp {
+    fn dst_addr(&self) -> SocketAddr {
+        SocketAddr::new([0, 0, 0, 0].into(), 0)
+    }
     fn payload(&self) -> &Vec<u8> {
         &self.payload
     }
@@ -79,7 +84,7 @@ impl Echo {
             id: [payload[0], payload[1]],
             seq: [payload[2], payload[3]],
             data: payload[4..].to_vec(),
-            len: payload.len()
+            len: payload.len(),
         }
     }
 }

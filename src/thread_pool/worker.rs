@@ -1,4 +1,6 @@
+use std::sync::Arc;
 use std::thread;
+use crate::protocol::internet::Datagram;
 use crate::thread_pool::{Receiver, Reporter, Sender};
 use crate::thread_pool::handler::Handler;
 use crate::thread_pool::state::State;
@@ -8,6 +10,7 @@ pub struct Worker {
     thread: Option<thread::JoinHandle<()>>,
     pub sender: Sender,
     pub state: State,
+    pub datagram: Option<Arc<Datagram>>,
 }
 
 impl Worker {
@@ -26,6 +29,7 @@ impl Worker {
             thread: Some(thread),
             sender: tx,
             state: State::IDLE,
+            datagram: None,
         }
     }
 }
