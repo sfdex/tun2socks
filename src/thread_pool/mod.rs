@@ -1,9 +1,10 @@
 use std::fs::File;
 use std::io::Write;
 use std::sync::{Arc, mpsc, Mutex};
+use crate::logging::Logging;
 
 use crate::protocol::internet::Datagram;
-use crate::thread_pool::state::State;
+use crate::thread_pool::state::Event;
 use crate::thread_pool::worker::Worker;
 
 mod state;
@@ -61,15 +62,15 @@ impl ThreadPool {
         }
     }
 
-    pub fn run(stream: &mut File, events: mpsc::Receiver<(usize, State)>) {
+    pub fn run(stream: &mut File, logging: &mut Logging, events: mpsc::Receiver<(usize, Event)>) {
         for worker_state in events {
             println!("Pool receive: index = {:?}", worker_state.0);
 
             let index = worker_state.0;
             let state = worker_state.1;
 
-            match &state {
-                State::IDLE => {
+            match state {
+                Event::IDLE => {
                     println!("{index} IDLE");
                     unsafe {
                         println!("Setting {index}");
@@ -79,10 +80,10 @@ impl ThreadPool {
                         println!("Setting 2");
                     }
                 }
-                State::MESSAGE(flag, resp) => {
+                Event::MESSAGE(flag, resp) => {
                     let mut worker = unsafe { &mut WORKERS[index] };
                     if let Some(datagram) = &mut worker.datagram {
-                        let payload = datagram.payload.pack(&[*flag], &resp);
+                        let payload = datagram.payload.pack(&[flag], &resp);
                         let pkt = datagram.resp_pack(&payload);
                         println!("run receive datagram: {:?}\n{:?}\n", pkt.len(), pkt);
                         match stream.write_all(&pkt) {
@@ -96,6 +97,9 @@ impl ThreadPool {
                         }
                     }
                     return;
+                }
+                Event::LOG(log) => {
+                    logging.i(log);
                 }
                 _ => {
                     unsafe {
@@ -112,6 +116,6 @@ impl ThreadPool {
 static mut WORKERS: Vec<Worker> = Vec::new();
 
 type Message = Vec<u8>;
-type Reporter = Arc<Mutex<mpsc::Sender<(usize, State)>>>;
+type Reporter = Arc<Mutex<mpsc::Sender<(usize, Event)>>>;
 type Sender = mpsc::Sender<Arc<Datagram>>;
 type Receiver = mpsc::Receiver<Arc<Datagram>>;

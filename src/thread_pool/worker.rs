@@ -3,13 +3,13 @@ use std::thread;
 use crate::protocol::internet::Datagram;
 use crate::thread_pool::{Receiver, Reporter, Sender};
 use crate::thread_pool::handler::Handler;
-use crate::thread_pool::state::State;
+use crate::thread_pool::state::Event;
 
 pub struct Worker {
     pub name: String,
     thread: Option<thread::JoinHandle<()>>,
     pub sender: Sender,
-    pub state: State,
+    pub state: Event,
     pub datagram: Option<Arc<Datagram>>,
 }
 
@@ -28,7 +28,7 @@ impl Worker {
             name: "".to_string(),
             thread: Some(thread),
             sender: tx,
-            state: State::IDLE,
+            state: Event::IDLE,
             datagram: None,
         }
     }

@@ -1,12 +1,11 @@
 use crate::thread_pool::Message;
 
-pub struct StateMessage(pub usize, pub State);
-
-pub enum State {
+pub enum Event {
     MESSAGE(u8, Message),
     TCP(String, TcpState),
     UDP(String, UdpState),
     ICMP(String, IcmpState),
+    LOG(String),
     IDLE,
 }
 

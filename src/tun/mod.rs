@@ -30,9 +30,10 @@ pub fn main(fd: c_int, log_path: *const c_char) {
     let (reporter, events) = mpsc::channel();
     let pool = ThreadPool::new(10, Arc::new(Mutex::new(reporter)));
     let mut cloned_stream = stream.try_clone().unwrap();
+    let mut cloned_logging = logging.clone();
     
     thread::spawn(move || {
-        ThreadPool::run(&mut cloned_stream, events);
+        ThreadPool::run(&mut cloned_stream, &mut cloned_logging, events);
     });
     
     loop {
