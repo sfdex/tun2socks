@@ -63,7 +63,7 @@ pub fn main(fd: c_int, log_path: *const c_char) {
                 };
 
                 let datagram = Datagram::new(&bytes);
-                ThreadPool::execute(datagram);
+                ThreadPool::execute(datagram, &mut logging);
                 // tx.send(datagram).unwrap();
             }
             Err(err) => {

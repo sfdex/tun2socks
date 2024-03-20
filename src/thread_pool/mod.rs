@@ -32,19 +32,22 @@ impl ThreadPool {
         }
     }
 
-    pub fn execute(datagram: Datagram) {
+    pub fn execute(datagram: Datagram, logging: &mut Logging) {
         let name = datagram.name();
-        println!("new datagram: {}", name);
         let d0 = Arc::new(datagram);
         let d1 = Arc::clone(&d0);
         unsafe {
             let mut index = 0;
             for (i, worker) in WORKERS.iter().enumerate() {
                 if worker.name == name {
-                    println!("worker.name = {}, name = {}, =={}", worker.name, name, worker.name == name);
-                    println!("Find it worker({i}), id: {}\n", &worker.name);
-
-                    worker.sender.send(d0).unwrap();
+                    match worker.sender.send(d0) {
+                        Ok(_) => {
+                            logging.d(format!("Success send task({i}->{})", worker.name));
+                        }
+                        Err(err) => {
+                            logging.d(format!("Failed send task({i}->{}), {:?}", worker.name, err.to_string()));
+                        }
+                    }
                     WORKERS[i].name = name;
                     WORKERS[i].datagram = Some(d1);
                     return;
@@ -55,7 +58,6 @@ impl ThreadPool {
                 }
             }
 
-            println!("worker({index}), name = {}\n", name);
             WORKERS[index].sender.send(d0).unwrap();
             WORKERS[index].name = name;
             WORKERS[index].datagram = Some(d1);
@@ -64,8 +66,6 @@ impl ThreadPool {
 
     pub fn run(stream: &mut File, logging: &mut Logging, events: mpsc::Receiver<(usize, Event)>) {
         for worker_state in events {
-            println!("Pool receive: index = {:?}", worker_state.0);
-
             let index = worker_state.0;
             let event = worker_state.1;
 

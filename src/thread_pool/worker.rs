@@ -16,12 +16,10 @@ pub struct Worker {
 impl Worker {
     pub fn new(id: usize, reporter: Reporter, tx: Sender, rx: Receiver) -> Self {
         let thread = thread::spawn(move || {
-            println!("thread{id}::spawn start");
             let mut handler = Handler::new(id, reporter);
             for msg in rx {
                 handler.handle(msg);
             }
-            println!("thread{id}::spawn End");
         });
 
         Self {
