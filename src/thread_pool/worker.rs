@@ -3,7 +3,7 @@ use std::thread;
 use crate::protocol::internet::Datagram;
 use crate::thread_pool::{Receiver, Reporter, Sender};
 use crate::thread_pool::handler::Handler;
-use crate::thread_pool::state::Event;
+use crate::thread_pool::event::Event;
 
 pub struct Worker {
     pub name: String,

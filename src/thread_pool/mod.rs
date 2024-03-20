@@ -4,10 +4,10 @@ use std::sync::{Arc, mpsc, Mutex};
 use crate::logging::Logging;
 
 use crate::protocol::internet::Datagram;
-use crate::thread_pool::state::Event;
+use crate::thread_pool::event::Event;
 use crate::thread_pool::worker::Worker;
 
-mod state;
+mod event;
 mod worker;
 mod handler;
 
@@ -67,17 +67,14 @@ impl ThreadPool {
             println!("Pool receive: index = {:?}", worker_state.0);
 
             let index = worker_state.0;
-            let state = worker_state.1;
+            let event = worker_state.1;
 
-            match state {
+            match event {
                 Event::IDLE => {
-                    println!("{index} IDLE");
                     unsafe {
-                        println!("Setting {index}");
-                        WORKERS[index].state = state;
+                        WORKERS[index].state = event;
                         WORKERS[index].name = String::new();
                         WORKERS[index].datagram = None;
-                        println!("Setting 2");
                     }
                 }
                 Event::MESSAGE(flag, resp) => {
@@ -85,31 +82,30 @@ impl ThreadPool {
                     if let Some(datagram) = &mut worker.datagram {
                         let payload = datagram.payload.pack(&[flag], &resp);
                         let pkt = datagram.resp_pack(&payload);
-                        println!("run receive datagram: {:?}\n{:?}\n", pkt.len(), pkt);
+                        logging.i(format!("<<--- Resp: len({})\n{:?}", pkt.len(), pkt));
                         match stream.write_all(&pkt) {
                             Ok(()) => {
                                 // datagram.update_seq(pkt.len() as u32);
-                                print!("Write success\n");
+                                logging.i("<<--- Resp: Write success\n".to_string());
                             }
                             Err(err) => {
-                                println!("Write error: {:?}", err);
+                                logging.i(format!("<<--- Resp: Write error: {:?}", err));
                             }
                         }
                     }
                     return;
                 }
                 Event::LOG(log) => {
+                    println!("{index} LOG: {:?}", log);
                     logging.i(log);
                 }
                 _ => {
                     unsafe {
-                        WORKERS[index].state = state;
+                        WORKERS[index].state = event;
                     }
                 }
             }
         }
-
-        println!("run end");
     }
 }
 

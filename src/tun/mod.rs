@@ -51,12 +51,14 @@ pub fn main(fd: c_int, log_path: *const c_char) {
                     logging.e(format!("error internet datagram(len[{n}]): {:?}", bytes));
                     continue;
                 }
+                
+                logging.i(format!("--->> Recv: len({})\n{:?}", n, bytes));
 
                 // handle_datagram(&bytes, &mut stream, &mut logging);
 
                 let version = (bytes[0] >> 4) & 0b1111;
                 if version != 4 {
-                    logging.w("Unsupported version ipv6".to_string());
+                    logging.w(format!("Unsupported version {version}"));
                     continue;
                 };
 

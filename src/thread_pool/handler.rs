@@ -1,13 +1,16 @@
 use std::{thread, usize};
 use std::io::{Read, Write};
-use std::net::{TcpStream, UdpSocket};
+use std::net::{SocketAddr, TcpStream, UdpSocket};
+use std::str::FromStr;
 use std::sync::{Arc, mpsc, Mutex};
 use std::thread::JoinHandle;
+use std::time::Duration;
+use crate::log;
 
-use crate::protocol::internet::{Datagram, Packet, Protocol, tcp};
+use crate::protocol::internet::{Datagram, Packet, Protocol};
 use crate::protocol::internet::tcp::*;
-use crate::thread_pool::{Message, Reporter, Sender};
-use crate::thread_pool::state::{Event, TcpState};
+use crate::thread_pool::{Message, Reporter};
+use crate::thread_pool::event::{Event, TcpState};
 
 pub struct Handler {
     pub id: usize,
@@ -53,7 +56,7 @@ impl Handler {
 
         match self.protocol {
             Protocol::TCP => {
-                self.handle_tcp();
+                // self.handle_tcp();
             }
             Protocol::UDP => {
                 self.handle_udp();
@@ -64,40 +67,45 @@ impl Handler {
     }
 
     fn handle_tcp(&mut self) {
-        if let Some(pkt) = &self.payload {
-            let data = pkt.payload();
+        println!("handle tcp: id = {}", self.id);
+        let id = self.id;
+        let name = self.name.to_string();
+        if let Some(pkt) = &self.datagram {
+            let payload = &pkt.payload;
+            let data = payload.payload();
+            let dst_addr = payload.dst_addr();
             if let Some(writer) = &mut self.tcp {
                 match writer.write_all(data) {
                     Ok(_) => {
-                        self.report_state(Event::LOG("Write to remote success".into()));
-                        self.report_state(Event::MESSAGE(*ACK, vec![]));
+                        self.report(Event::LOG("Write to remote success".into()));
+                        self.report(Event::MESSAGE(*ACK, vec![]));
                     }
                     Err(e) => {
-                        self.report_state(Event::LOG(format!("write data error: bye bye, {:?}", e)));
-                        self.report_state(Event::MESSAGE(*RST, vec![]));
-                        self.report_state(Event::IDLE);
+                        self.report(log!("write data error: bye bye, {:?}", e));
+                        self.report(Event::MESSAGE(*RST, vec![]));
+                        self.report(Event::IDLE);
                     }
                 }
                 return;
             }
 
-            self.report_state(Event::LOG(format!("handle tcp: id = {}", self.id)));
-            let ret = TcpStream::connect_timeout(&pkt.dst_addr(), std::time::Duration::from_secs(5));
+            self.report(log!("{id}->{name}: connect to {dst_addr}", dst_addr = dst_addr));
+            let ret = TcpStream::connect_timeout(&payload.dst_addr(), std::time::Duration::from_secs(5));
             if let Err(e) = &ret {
-                self.report_state(Event::LOG(format!("write data error: bye bye, {:#?}", e)));
-                self.report_state(Event::MESSAGE(*RST, vec![]));
-                self.report_state(Event::IDLE);
+                self.report(log!("{id}->{name}: connect to {dst_addr} error: {e:#?}", e = e));
+                self.report(Event::MESSAGE(*RST, vec![]));
+                self.report(Event::IDLE);
                 return;
             }
 
-            let tcp_state = Event::TCP(self.name.to_string(), TcpState::SynAckWait);
-            self.report_state(tcp_state);
+            log!("{id}->{name}: connect to {dst_addr} success").report(id, &self.reporter);
 
-            self.report_state(Event::MESSAGE(*SYN_ACK, vec![]));
+            let tcp_state = Event::TCP(self.name.to_string(), TcpState::SynAckWait);
+            self.report(tcp_state);
+
+            self.report(Event::MESSAGE(*SYN_ACK, vec![]));
 
             let reporter = Arc::clone(&self.reporter);
-            let id = self.id;
-            let name = self.name.to_string();
 
             let stream = ret.unwrap();
             let mut stream_cloned = stream.try_clone().unwrap();
@@ -110,15 +118,15 @@ impl Handler {
                     match stream_cloned.read(&mut buf) {
                         Ok(n) => {
                             if n == 0 {
-                                Self::report_event(&reporter, id, Event::LOG(format!("{id}->{name}: reach end")));
+                                log!("{id}->{name}: reach end").report(id, &reporter);
                                 break;
                             }
-                            Self::report_event(&reporter, id, Event::MESSAGE(0, buf[..n].to_vec()));
+                            Event::MESSAGE(0, buf[..n].to_vec()).report(id, &reporter);
                         }
                         Err(e) => {
-                            Self::report_event(&reporter, id, Event::LOG(format!("{id}->{name}: {:#?}", e)));
-                            Self::report_event(&reporter, id, Event::MESSAGE(*RST, vec![]));
-                            Self::report_event(&reporter, id, Event::IDLE);
+                            log!("{id}->{name}: {:#?}", e).report(id, &reporter);
+                            Event::MESSAGE(*RST, vec![]).report(id, &reporter);
+                            Event::IDLE.report(id, &reporter);
                             break;
                         }
                     }
@@ -136,73 +144,90 @@ impl Handler {
 
     fn handle_udp(&mut self) {
         if let Some(datagram) = &self.datagram {
-            let pkt = &datagram.payload;
-            let payload = pkt.payload();
-            let reporter = Arc::clone(&self.reporter);
+            let payload = &datagram.payload;
+            let data = payload.payload();
             let id = self.id;
             let name = self.name.to_string();
+            let dst_addr = payload.dst_addr();
 
+            let reporter = Arc::clone(&self.reporter);
+            
             if let Some(udp) = &self.udp {
-                match udp.send(payload) {
+                match udp.send(data) {
                     Ok(n) => {
-                        self.report_state(Event::LOG(format!("{id}->{name}: udp send {n} bytes")));
+                        self.report(log!("{id}->{name} sent {n} bytes"));
                     }
                     Err(err) => {
-                        self.report_state(Event::LOG(format!("{id}->{name}: udp send error: {:#?}", err)));
-                        self.report_state(Event::IDLE);
+                        self.report(log!("{id}->{name} sent error: {:#?}", err));
+                        self.report(Event::IDLE);
                     }
                 }
 
                 return;
             }
 
-            let udp = UdpSocket::bind("10.0.0.1:8989").unwrap();
-            match udp.connect(pkt.dst_addr()) {
-                Ok(_) => {
-                    self.report_state(Event::LOG(format!("{id}->{name}: udp connect success")))
+            let udp = match UdpSocket::bind("10.0.0.1:8989") {
+                Ok(udp_socket) => {
+                    self.report(log!("{id}->{name} bind success"));
+                    udp_socket
                 }
                 Err(err) => {
-                    self.report_state(Event::LOG(format!("{id}->{name}: udp connect error: {:#?}", err)));
-                    self.report_state(Event::IDLE);
+                    self.report(log!("{id}->{name} bind failed: {:#?}", err));
+                    return;
+                }
+            };
+
+            match udp.connect(dst_addr) {
+                Ok(_) => {
+                    self.report(log!("{id}->{name} connect to server success"))
+                }
+                Err(err) => {
+                    self.report(log!("{id}->{name}: udp connect to server error: {:#?}", err));
+                    self.report(Event::IDLE);
                 }
             }
 
-            match udp.send(payload) {
+            match udp.send(data) {
                 Ok(n) => {
-                    self.report_state(Event::LOG(format!("{id}->{name}: udp send {n} bytes")));
+                    self.report(log!("{id}->{name} sent {n} bytes"));
                 }
                 Err(err) => {
-                    self.report_state(Event::LOG(format!("{id}->{name}: udp send error: {:#?}", err)));
-                    self.report_state(Event::IDLE);
+                    self.report(log!("{id}->{name} sent error: {:#?}", err));
+                    self.report(Event::IDLE);
                     return;
                 }
             }
-
+            
             let udp_cloned = udp.try_clone().unwrap();
             self.udp = Some(udp);
 
             let job = thread::spawn(move || {
                 loop {
                     let mut buf = vec![0; 1500];
-                    match udp_cloned.recv_from(&mut buf) {
-                        Ok((n, addr)) => {
-                            Self::report_event(&reporter, id, Event::LOG(format!("{id}->{name}: udp recv {n} bytes from {addr}, content: {}", String::from_utf8_lossy(&buf[..n]))));
-                            Self::report_event(&reporter, id, Event::MESSAGE(0, buf[..n].to_vec()));
+                    log!("{id}->{name}: udp recv start").report(id, &reporter);
+                    
+                    match udp_cloned.recv(&mut buf) {
+                        Ok(n) => {
+                    // match udp.recv_from(&mut buf) {
+                    //     Ok((n, addr)) => {
+                            log!("{id}->{name}: udp recv {n} bytes, content: {}", String::from_utf8_lossy(&buf[..n])).report(id, &reporter);
+                            Event::MESSAGE(0, buf[..n].to_vec()).report(id, &reporter);
                         }
                         Err(err) => {
-                            Self::report_event(&reporter, id, Event::LOG(format!("{id}->{name}: udp recv error: {:#?}", err)));
-                            Self::report_event(&reporter, id, Event::IDLE);
+                            log!("{id}->{name}: udp recv error: {:#?}", err).report(id, &reporter);
+                            Event::IDLE.report(id, &reporter);
                             break;
                         }
                     }
                 }
+                log!("{id}->{name}: udp recv end").report(id, &reporter);
             });
-
+            
             self.job = Some(job);
         }
     }
 
-    fn report_state(&self, state: Event) {
-        self.reporter.lock().unwrap().send((self.id, state)).unwrap();
+    fn report(&self, state: Event) {
+        state.report(self.id, &self.reporter);
     }
 }
