@@ -1,6 +1,7 @@
 use std::fs::File;
 use std::io::Write;
 use std::net::IpAddr;
+use std::thread;
 use crate::dispatcher::simulator::Simulator;
 use crate::logging::Logging;
 use crate::protocol::internet::{Datagram, Protocol, Packet, PseudoHeader};
@@ -11,6 +12,34 @@ use crate::util::{bytes_to_u32, bytes_to_u32_no_prefix};
 
 pub mod simulator;
 pub mod direct;
+
+pub fn handle_datagram(datagram: &[u8], stream: &mut File, logging: &mut Logging) {
+    logging.i(format!("--->> Recv: len({}), {:?}", (&datagram).len(), &datagram));
+
+    // msg[0] & 4 == 4 #ipv4
+    // msg[0] & 6 == 6 #ipv6
+    let version = (datagram[0] >> 4) & 0b1111;
+    match version {
+        4 => {
+            // stream.read(&mut buf2) // Read remaining bytes error: OS(11), Operation would block.
+            let data = datagram.to_vec();
+            let mut copy_stream = stream.try_clone().unwrap();
+            let mut copy_logging = logging.clone();
+
+            let s = thread::spawn(move || {
+                dispatch(data, &mut copy_stream, &mut copy_logging);
+            });
+
+            s.join().expect("TODO: panic message");
+        }
+        6 => {
+            logging.w("Unsupported version ipv6".to_string());
+        }
+        _ => {
+            logging.e(format!("Error version {}", version));
+        }
+    }
+}
 
 pub fn dispatch(data: Vec<u8>, stream: &mut File, logging: &mut Logging) {
     let datagram = Datagram::new(&data);
@@ -27,7 +56,7 @@ pub fn dispatch(data: Vec<u8>, stream: &mut File, logging: &mut Logging) {
                       IpAddr::from(ip_header.dst_ip),
                       ip_header.version_ihl & 0x0F,
     ));
-    
+
     let pseudo_header = PseudoHeader {
         src_ip: ip_header.dst_ip,
         dst_ip: ip_header.src_ip,
@@ -40,7 +69,7 @@ pub fn dispatch(data: Vec<u8>, stream: &mut File, logging: &mut Logging) {
     // let packet = build_packet(protocol, &datagram.payload, pseudo_header);
     let packet = build_packet(protocol, &[], pseudo_header);
     logging.i(packet.info());
-    
+
     if let Protocol::UNKNOWN = protocol {
         logging.e("Unsupported unknown protocol\n".to_string());
         return;
@@ -82,8 +111,8 @@ fn build_packet(protocol: &Protocol, data: &[u8], pseudo_header: PseudoHeader) -
             Box::new(Icmp::new(data))
         }
         // Protocol::UNKNOWN => {}
-        _=> {
+        _ => {
             Box::new(Udp::new(data, pseudo_header))
         }
-    }
+    };
 }

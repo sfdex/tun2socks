@@ -76,14 +76,14 @@ impl ThreadPool {
                     }
                 }
                 Event::MESSAGE(flag, resp) => {
-                    let mut worker = unsafe { &mut WORKERS[index] };
+                    let worker = unsafe { &mut WORKERS[index] };
                     if let Some(datagram) = &mut worker.datagram {
                         let payload = datagram.payload.pack(&[flag], &resp);
                         let pkt = datagram.resp_pack(&payload);
                         logging.i(format!("<<--- Respond: len({})\n{:?}", pkt.len(), pkt));
 
                         let new_dg = Datagram::new(&pkt);
-                        logging.i(format!("{}", new_dg.payload.info()));
+                        logging.i(new_dg.payload.info());
 
                         match stream.write_all(&pkt) {
                             Ok(()) => {

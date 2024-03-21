@@ -9,7 +9,6 @@ use crate::thread_pool::Reporter;
 
 pub struct Handler {
     pub id: usize,
-    pub name: String,
     pub reporter: Reporter,
     pub protocol: Protocol,
     pub datagram: Option<Arc<Datagram>>,
@@ -23,7 +22,6 @@ impl Handler {
     pub fn new(id: usize, reporter: Reporter) -> Self {
         Self {
             id,
-            name: String::new(),
             reporter,
             protocol: Protocol::UNKNOWN,
             datagram: None,
@@ -36,7 +34,6 @@ impl Handler {
 
     pub fn handle(&mut self, datagram: Arc<Datagram>) {
         self.protocol = datagram.protocol();
-        self.name = datagram.name();
         self.datagram = Some(datagram);
 
         match self.protocol {

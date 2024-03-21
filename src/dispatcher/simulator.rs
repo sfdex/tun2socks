@@ -1,7 +1,5 @@
 use crate::protocol::internet::{Packet, Protocol};
-use crate::protocol::internet::icmp::Icmp;
 use crate::protocol::internet::tcp::*;
-use crate::protocol::internet::udp::Udp;
 
 pub struct Simulator;
 
@@ -48,9 +46,6 @@ impl Simulator {
                 vec![]
             }
         };
-        // let addr = IpAddr::from(ip_header.dst_ip);
-        // let port = bytes_to_u32(&tcp.header.dst_port) as u16;
-        // let result = dial_tcp(addr, port, &[1u8]);
     }
 
     pub fn handle_udp(udp: &Pkt) -> Vec<Vec<u8>> {

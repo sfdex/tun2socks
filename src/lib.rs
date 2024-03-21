@@ -22,6 +22,11 @@ pub extern "C" fn tun2socks(fd: c_int, log_path: *const c_char) {
 #[cfg(test)]
 mod tests {
     use std::fs::File;
+    use std::io::{Read, Write};
+    use std::net::{SocketAddr, TcpStream};
+    use std::str::FromStr;
+    use std::thread;
+    use std::time::Duration;
     use crate::logging::Logging;
     use crate::protocol::internet::Datagram;
     use crate::util::bytes_to_u32;
@@ -55,7 +60,7 @@ mod tests {
         let datagram = [];
         let mut stream = File::create("build/stream.txt").unwrap();
         let mut logging = Logging::new("build/logging.txt");
-        tun::handle_datagram(&datagram, &mut stream, &mut logging);
+        dispatcher::handle_datagram(&datagram, &mut stream, &mut logging);
         assert_eq!(2 + 2, 4);
     }
 
@@ -94,5 +99,62 @@ mod tests {
         let checksum = Datagram::calc_checksum(&bytes.to_vec());
         println!("dst checksum: {:?}, hex({:x})", checksum, (bytes_to_u32(&checksum) as u16));
         assert_eq!(checksum, [176, 23]);
+    }
+
+    #[test]
+    pub fn tcp_test() {
+        let tag = "SFDEX-TEST: ";
+        let mut logging = Logging::new("build/logging.txt");
+
+        logging.i(format!("{tag}"));
+
+        let dst_addr = SocketAddr::from_str("1.2.3.4:5678").unwrap();
+        let mut stream = match TcpStream::connect_timeout(&dst_addr, Duration::from_secs(5)) {
+            Ok(stream) => {
+                logging.i(format!("{tag}success connect to server"));
+                stream
+            }
+            Err(err) => {
+                logging.i(format!("{tag}failed connect: {e:#?}", e = err));
+                return;
+            }
+        };
+
+        let mut cloned_stream = stream.try_clone().unwrap();
+        let mut logging2 = logging.clone();
+        let job = thread::spawn(move || {
+            let mut buf = vec![0; 1500];
+            loop {
+                match cloned_stream.read(&mut buf) {
+                    Ok(0) => {
+                        logging2.i(format!("{tag}reach end"));
+                        break;
+                    }
+                    Ok(n) => {
+                        let bytes = &buf[..n];
+                        logging2.i(format!("{tag}Recv: len({})\n{:?}", n, bytes));
+                    }
+                    Err(e) => {
+                        logging2.i(format!("{tag}Read data error: bye bye, {:?}", e));
+                        break;
+                    }
+                }
+            }
+        });
+
+        for i in 0..10 {
+            thread::sleep(Duration::from_secs(1));
+            let msg = format!("No.{}", i);
+            match stream.write_all(msg.as_bytes()) {
+                Ok(_) => {
+                    logging.i(format!("{tag}Send to remote success"));
+                }
+                Err(e) => {
+                    logging.i(format!("{tag}Send data error: bye bye, {:?}", e));
+                }
+            }
+        }
+
+        job.join().unwrap();
     }
 }
