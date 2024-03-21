@@ -1,20 +1,17 @@
 use std::fs::File;
 use std::io::Write;
-use std::sync::{Arc, mpsc, Mutex};
-use crate::logging::Logging;
+use std::sync::{Arc, mpsc};
 
+use crate::logging::Logging;
 use crate::protocol::internet::Datagram;
 use crate::thread_pool::event::Event;
 use crate::thread_pool::worker::Worker;
 
-mod event;
 mod worker;
-mod handler;
+pub mod event;
+pub mod handler;
 
-pub struct ThreadPool {
-    // writer: File,
-    // state_receiver: mpsc::Receiver<(usize, State)>,
-}
+pub struct ThreadPool {}
 
 impl ThreadPool {
     pub fn new(size: usize, reporter: Reporter) -> Self {
@@ -68,6 +65,7 @@ impl ThreadPool {
         for worker_state in events {
             let index = worker_state.0;
             let event = worker_state.1;
+            let name = unsafe { &WORKERS[index].name };
 
             match event {
                 Event::IDLE => {
@@ -82,22 +80,25 @@ impl ThreadPool {
                     if let Some(datagram) = &mut worker.datagram {
                         let payload = datagram.payload.pack(&[flag], &resp);
                         let pkt = datagram.resp_pack(&payload);
-                        logging.i(format!("<<--- Resp: len({})\n{:?}", pkt.len(), pkt));
+                        logging.i(format!("<<--- Respond: len({})\n{:?}", pkt.len(), pkt));
+
+                        let new_dg = Datagram::new(&pkt);
+                        logging.i(format!("{}", new_dg.payload.info()));
+
                         match stream.write_all(&pkt) {
                             Ok(()) => {
                                 // datagram.update_seq(pkt.len() as u32);
-                                logging.i("<<--- Resp: Write success\n".to_string());
+                                logging.i("<<--- Respond: Write success\n".to_string());
                             }
                             Err(err) => {
-                                logging.i(format!("<<--- Resp: Write error: {:?}", err));
+                                logging.i(format!("<<--- Respond: Write error: {:?}", err));
                             }
                         }
                     }
-                    return;
                 }
                 Event::LOG(log) => {
                     println!("{index} LOG: {:?}", log);
-                    logging.i(log);
+                    logging.i(format!("{index}=>{}: {log}", name));
                 }
                 _ => {
                     unsafe {
@@ -112,6 +113,6 @@ impl ThreadPool {
 static mut WORKERS: Vec<Worker> = Vec::new();
 
 type Message = Vec<u8>;
-type Reporter = Arc<Mutex<mpsc::Sender<(usize, Event)>>>;
+type Reporter = Arc<mpsc::Sender<(usize, Event)>>;
 type Sender = mpsc::Sender<Arc<Datagram>>;
 type Receiver = mpsc::Receiver<Arc<Datagram>>;

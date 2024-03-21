@@ -108,7 +108,7 @@ impl Packet for Tcp {
     fn dst_addr(&self) -> SocketAddr {
         SocketAddr::new(self.pseudo_header.dst_ip.into(), bytes_to_u32(&self.header.dst_port) as u16)
     }
-    
+
     fn dst_port(&self) -> u16 {
         bytes_to_u32(&self.header.dst_port) as u16
     }
@@ -220,23 +220,24 @@ impl Packet for Tcp {
 #[derive(PartialEq, Eq)]
 pub struct FlagsType(pub u8);
 
-pub const ACK: FlagsType = FlagsType(0b00010000);
 // .
-pub const SYN: FlagsType = FlagsType(0b00000010);
+pub const ACK: FlagsType = FlagsType(0b00010000);
 // S
-pub const SEW: FlagsType = FlagsType(0b11000010);
+pub const SYN: FlagsType = FlagsType(0b00000010);
 // SEW
-pub const FIN: FlagsType = FlagsType(0b00000001);
+pub const SEW: FlagsType = FlagsType(0b11000010);
 // F
-pub const RST: FlagsType = FlagsType(0b00000100);
+pub const FIN: FlagsType = FlagsType(0b00000001);
 // R
-pub const SYN_ACK: FlagsType = FlagsType(0b00010010);
+pub const RST: FlagsType = FlagsType(0b00000100);
 // S.
-pub const PSH_ACK: FlagsType = FlagsType(0b00011000);
+pub const SYN_ACK: FlagsType = FlagsType(0b00010010);
 // P.
-pub const FIN_ACK: FlagsType = FlagsType(0b00010001);
+pub const PSH_ACK: FlagsType = FlagsType(0b00011000);
 // F.
-pub const RST_ACK: FlagsType = FlagsType(0b00010100);   // R.
+pub const FIN_ACK: FlagsType = FlagsType(0b00010001);
+// R.
+pub const RST_ACK: FlagsType = FlagsType(0b00010100);
 
 impl Deref for FlagsType {
     type Target = u8;

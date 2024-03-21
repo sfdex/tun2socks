@@ -5,12 +5,14 @@ use std::os::fd::{AsRawFd, FromRawFd, RawFd};
 use std::os::raw::c_int;
 use std::sync::{Arc, mpsc, Mutex};
 use std::thread;
-use std::time::SystemTime;
+use std::time::{Duration, SystemTime};
 use crate::logging::Logging;
 use crate::protocol::internet::Datagram;
 use crate::thread_pool::ThreadPool;
 
 const MTU: usize = 1500;
+
+mod test;
 
 pub fn main(fd: c_int, log_path: *const c_char) {
     let raw_fd = RawFd::from(fd).as_raw_fd();
@@ -28,18 +30,28 @@ pub fn main(fd: c_int, log_path: *const c_char) {
     let mut last_err = Error::new(ErrorKind::InvalidInput, "Oh no");
 
     let (reporter, events) = mpsc::channel();
-    let pool = ThreadPool::new(10, Arc::new(Mutex::new(reporter)));
+    // let pool = ThreadPool::new(10, Arc::new(Mutex::new(reporter)));
+    let pool = ThreadPool::new(10, Arc::new(reporter));
     let mut cloned_stream = stream.try_clone().unwrap();
     let mut cloned_logging = logging.clone();
-    
+
     thread::spawn(move || {
         ThreadPool::run(&mut cloned_stream, &mut cloned_logging, events);
     });
-    
+
+    // let mut logging_cloned = logging.clone();
+    // thread::spawn(move || {
+    //     logging_cloned.i("New test begin".to_string());
+    //     thread::sleep(Duration::from_secs(5));
+    //     test::test(&mut logging_cloned);
+    //     logging_cloned.i("New test end".to_string());
+    // });
+
     loop {
         match stream.read(&mut buf) {
             Ok(0) => {
                 logging.i("reach end".to_string());
+                break;
             }
             Ok(n) => {
                 let bytes = &buf[..n];
@@ -51,7 +63,7 @@ pub fn main(fd: c_int, log_path: *const c_char) {
                     logging.e(format!("error internet datagram(len[{n}]): {:?}", bytes));
                     continue;
                 }
-                
+
                 logging.i(format!("--->> Recv: len({})\n{:?}", n, bytes));
 
                 // handle_datagram(&bytes, &mut stream, &mut logging);
@@ -67,16 +79,33 @@ pub fn main(fd: c_int, log_path: *const c_char) {
                 // tx.send(datagram).unwrap();
             }
             Err(err) => {
+                match err.kind() {
+                    ErrorKind::WouldBlock => {
+                        // logging.i("tun read error WouldBlock".to_string());
+                    }
+                    ErrorKind::InvalidInput => {
+                        logging.i("tun read error InvalidInput".to_string());
+                        break;
+                    }
+                    ErrorKind::Other => {
+                        logging.e(format!("tun read error other: {:#?}", err));
+                    }
+                    _ => {
+                        logging.e(format!("tun read error _: {:#?}", err));
+                        break;
+                    }
+                    // Socket operation on non-socket (os error 88)
+                }
+
                 if err.kind() != last_err.kind() {
                     last_err = err;
                     logging.i(format!("tun read error, kind: {}, err: {}", last_err.kind(), last_err));
                 };
-                // Socket operation on non-socket (os error 88)
             }
         }
     }
 
-    // pool.run();
+    logging.i(format!("tun end, elapsed: {:?}", time.elapsed().unwrap()));
 }
 
 pub fn handle_datagram(datagram: &[u8], stream: &mut File, logging: &mut Logging) {

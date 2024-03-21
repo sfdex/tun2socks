@@ -1,14 +1,16 @@
 use crate::thread_pool::{Message, Reporter};
 
+#[derive(Debug)]
 pub enum Event {
     MESSAGE(u8, Message),
-    TCP(String, TcpState),
-    UDP(String, UdpState),
-    ICMP(String, IcmpState),
+    TCP(TcpState),
+    UDP(UdpState),
+    ICMP(IcmpState),
     LOG(String),
     IDLE,
 }
 
+#[derive(Debug)]
 pub enum TcpState {
     SynAckWait,
     Communication,
@@ -17,11 +19,13 @@ pub enum TcpState {
     Destroy,
 }
 
+#[derive(Debug)]
 pub enum UdpState {
     Communication,
     Destroy,
 }
 
+#[derive(Debug)]
 pub enum IcmpState {
     Communication,
     Destroy,
@@ -29,7 +33,13 @@ pub enum IcmpState {
 
 impl Event {
     pub fn report(self, id: usize, reporter: &Reporter) {
-        reporter.lock().unwrap().send((id, self)).unwrap();
+        println!("## reporting event: {:?}", self);
+        match reporter.send((id, self)) {
+            Ok(_) => {}
+            Err(err) => {
+                println!("!# reporting event failed: {}", err.to_string())
+            }
+        }
     }
 }
 
@@ -37,6 +47,6 @@ impl Event {
 macro_rules! log {
     ($($arg:tt)*) => {{
         let res = std::fmt::format(format_args!($($arg)*));
-        Event::LOG(res)
+        crate::thread_pool::event::Event::LOG(res)
     }}
 }

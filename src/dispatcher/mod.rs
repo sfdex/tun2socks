@@ -9,8 +9,8 @@ use crate::protocol::internet::tcp::Tcp;
 use crate::protocol::internet::udp::Udp;
 use crate::util::{bytes_to_u32, bytes_to_u32_no_prefix};
 
-pub mod direct;
 pub mod simulator;
+pub mod direct;
 
 pub fn dispatch(data: Vec<u8>, stream: &mut File, logging: &mut Logging) {
     let datagram = Datagram::new(&data);
