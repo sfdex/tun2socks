@@ -107,6 +107,18 @@ impl ThreadPool {
                 }
             }
         }
+
+        logging.i("<<--- tun2socks ended --->>".to_string());
+    }
+
+    // Stop all workers
+    pub fn stop() {
+        unsafe {
+            for i in 0..10usize {
+                WORKERS[i].stop();
+            }
+            WORKERS.clear();
+        }
     }
 }
 

@@ -33,7 +33,7 @@ impl Handler{
             return;
         }
 
-        let udp = match UdpSocket::bind("10.0.0.1:8989") {
+        let udp = match UdpSocket::bind("0.0.0.0:8989") {
             Ok(udp_socket) => {
                 self.report(log!("bind success"));
                 udp_socket

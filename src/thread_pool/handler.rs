@@ -1,5 +1,5 @@
 use std::net::{TcpStream, UdpSocket};
-use std::sync::{Arc, mpsc, Mutex};
+use std::sync::Arc;
 use std::thread::JoinHandle;
 use std::usize;
 
@@ -12,7 +12,7 @@ pub struct Handler {
     pub reporter: Reporter,
     pub protocol: Protocol,
     pub datagram: Option<Arc<Datagram>>,
-    pub payload: Option<Box<dyn Packet + Send>>,
+    pub payload: Option<Box<dyn Packet + Send + Sync>>,
     pub tcp: Option<TcpStream>,
     pub udp: Option<UdpSocket>,
     pub job: Option<JoinHandle<()>>,
@@ -46,6 +46,16 @@ impl Handler {
             Protocol::ICMP => {}
             Protocol::UNKNOWN => {}
         }
+    }
+
+    pub fn stop(&mut self) {
+        if let Some(tcp) = &self.tcp {
+            tcp.shutdown(std::net::Shutdown::Both).unwrap();
+        }
+
+        self.tcp = None;
+        self.udp = None;
+        self.job = None;
     }
 
     pub fn report(&self, state: Event) {

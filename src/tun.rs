@@ -22,7 +22,7 @@ pub fn main(fd: c_int, log_path: *const c_char) {
     logging.i(format!("Hello tun2socks main, fd({logging_path}), logging_path({logging_path})"));
 
     let (reporter, events) = mpsc::channel();
-    let _ = ThreadPool::new(10, Arc::new(reporter));
+    let pool = ThreadPool::new(10, Arc::new(reporter));
 
     let mut cloned_interface = interface.try_clone().unwrap();
     let mut cloned_logging = logging.clone();
@@ -82,4 +82,6 @@ pub fn main(fd: c_int, log_path: *const c_char) {
             }
         }
     }
+
+    ThreadPool::stop()
 }
