@@ -1,7 +1,7 @@
 use std::fmt::Display;
 use std::net::SocketAddr;
 use std::ops::Deref;
-use crate::protocol::internet::{Datagram, Packet, PseudoHeader};
+use crate::protocol::internet::{Datagram, Packet, Protocol, PseudoHeader};
 use crate::util::{bytes_to_u32, u32_to_bytes};
 
 /*
@@ -105,6 +105,10 @@ impl Tcp {
 }
 
 impl Packet for Tcp {
+    fn protocol(&self) -> Protocol {
+        Protocol::TCP
+    }
+
     fn dst_addr(&self) -> SocketAddr {
         SocketAddr::new(self.pseudo_header.dst_ip.into(), bytes_to_u32(&self.header.dst_port) as u16)
     }

@@ -1,5 +1,5 @@
 use std::net::SocketAddr;
-use crate::protocol::internet::{Datagram, Packet, PseudoHeader};
+use crate::protocol::internet::{Datagram, Packet, Protocol, PseudoHeader};
 use crate::util::bytes_to_u32;
 
 /*
@@ -47,6 +47,10 @@ impl Udp {
 }
 
 impl Packet for Udp {
+    fn protocol(&self) -> Protocol {
+        Protocol::UDP
+    }
+
     fn dst_addr(&self) -> SocketAddr {
         SocketAddr::new(self.pseudo_header.dst_ip.into(), bytes_to_u32(&self.header.dst_port) as u16)
     }

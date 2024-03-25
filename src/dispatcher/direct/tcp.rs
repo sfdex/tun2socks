@@ -12,14 +12,12 @@ use crate::thread_pool::handler::Handler;
 impl Handler {
     pub fn handle_tcp(&mut self) {
         let id = self.id;
-        self.report(log!("handle tcp"));
-        let datagram = if let Some(pkt) = &self.datagram {
+        let payload = if let Some(pkt) = &self.payload {
             pkt
         } else {
             return;
         };
 
-        let payload = &datagram.payload;
         self.report(log!("{}", payload.info()));
 
         let data = payload.payload();
@@ -66,7 +64,7 @@ impl Handler {
         // Receive message
         let job = thread::spawn(move || {
             let mut buf = vec![0; 1500];
-            log!("loop start").report(id, &reporter);
+            log!("tcp loop start").report(id, &reporter);
             loop {
                 match stream_cloned.read(&mut buf) {
                     Ok(n) => {

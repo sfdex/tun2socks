@@ -1,18 +1,17 @@
-use std::net::{TcpStream, UdpSocket};
-use std::sync::Arc;
+use std::net::{Shutdown, TcpStream, UdpSocket};
 use std::thread::JoinHandle;
 use std::usize;
+use crate::log;
 
-use crate::protocol::internet::{Datagram, Packet, Protocol};
+use crate::protocol::internet::{Payload, Protocol};
 use crate::thread_pool::event::Event;
+use crate::thread_pool::event::Event::LOG;
 use crate::thread_pool::Reporter;
 
 pub struct Handler {
     pub id: usize,
     pub reporter: Reporter,
-    pub protocol: Protocol,
-    pub datagram: Option<Arc<Datagram>>,
-    pub payload: Option<Box<dyn Packet + Send + Sync>>,
+    pub payload: Option<Payload>,
     pub tcp: Option<TcpStream>,
     pub udp: Option<UdpSocket>,
     pub job: Option<JoinHandle<()>>,
@@ -23,8 +22,6 @@ impl Handler {
         Self {
             id,
             reporter,
-            protocol: Protocol::UNKNOWN,
-            datagram: None,
             payload: None,
             job: None,
             tcp: None,
@@ -32,11 +29,11 @@ impl Handler {
         }
     }
 
-    pub fn handle(&mut self, datagram: Arc<Datagram>) {
-        self.protocol = datagram.protocol();
-        self.datagram = Some(datagram);
+    pub fn handle(&mut self, payload: Payload) {
+        let protocol = payload.protocol();
+        self.payload = Some(payload);
 
-        match self.protocol {
+        match protocol {
             Protocol::TCP => {
                 self.handle_tcp();
             }
@@ -48,17 +45,29 @@ impl Handler {
         }
     }
 
-    pub fn stop(&mut self) {
-        if let Some(tcp) = &self.tcp {
-            tcp.shutdown(std::net::Shutdown::Both).unwrap();
-        }
-
-        self.tcp = None;
-        self.udp = None;
-        self.job = None;
-    }
-
     pub fn report(&self, state: Event) {
         state.report(self.id, &self.reporter);
+    }
+
+    pub fn stop(mut self) {
+        if let Some(tcp) = self.tcp {
+            let err = tcp.take_error();
+            match tcp.shutdown(Shutdown::Both) {
+                Ok(_) => {}
+                Err(err) => {
+                    println!("Shut down tcp error: {}", err);
+                }
+            }
+            drop(tcp);
+        } else if let Some(udp) = self.udp {
+            let err = udp.take_error();
+            drop(udp);
+        }
+
+        if let Some(job) = self.job {
+            drop(job);
+        }
+
+        drop(self.reporter);
     }
 }

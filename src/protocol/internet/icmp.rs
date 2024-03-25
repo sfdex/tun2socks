@@ -1,5 +1,5 @@
 use std::net::SocketAddr;
-use crate::protocol::internet::{Datagram, Packet};
+use crate::protocol::internet::{Datagram, Packet, Protocol};
 use crate::util::bytes_to_u32;
 
 pub struct Icmp {
@@ -38,6 +38,10 @@ impl Icmp {
 }
 
 impl Packet for Icmp {
+    fn protocol(&self) -> Protocol {
+        Protocol::ICMP
+    }
+
     fn dst_addr(&self) -> SocketAddr {
         SocketAddr::new([0, 0, 0, 0].into(), 0)
     }

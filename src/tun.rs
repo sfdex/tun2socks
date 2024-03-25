@@ -4,7 +4,7 @@ use std::io::{Error, ErrorKind, Read};
 use std::os::fd::{AsRawFd, FromRawFd, RawFd};
 use std::os::raw::c_int;
 use std::sync::{Arc, mpsc};
-use std::thread;
+use std::{fs, thread};
 
 use crate::logging::Logging;
 use crate::protocol::internet::Datagram;
@@ -32,7 +32,13 @@ pub fn main(fd: c_int, log_path: *const c_char) {
 
     let mut buf = vec![0; MTU]; // Usual internet header length
     let mut last_err = Error::new(ErrorKind::InvalidInput, "Oh no");
+
     loop {
+        if !isRunning() {
+            logging.i("tun2socks recv stop signal".to_string());
+            break;
+        }
+
         match interface.read(&mut buf) {
             Ok(0) => {
                 logging.i("reach end".to_string());
@@ -85,3 +91,15 @@ pub fn main(fd: c_int, log_path: *const c_char) {
 
     ThreadPool::stop()
 }
+
+pub fn stop() {
+    unsafe {
+        RUNNING = false;
+    }
+}
+
+pub fn isRunning() -> bool {
+    unsafe { RUNNING }
+}
+
+static mut RUNNING: bool = true;

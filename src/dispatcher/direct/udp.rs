@@ -5,19 +5,14 @@ use crate::log;
 use crate::thread_pool::event::Event::{IDLE, MESSAGE};
 use crate::thread_pool::handler::Handler;
 
-impl Handler{
+impl Handler {
     pub fn handle_udp(&mut self) {
-        let datagram = if let Some(datagram) = &self.datagram {
-            datagram
+        let payload = if let Some(payload) = &self.payload {
+            payload
         } else {
             return;
         };
-        let payload = &datagram.payload;
         let data = payload.payload();
-        let id = self.id;
-        let dst_addr = payload.dst_addr();
-
-        let reporter = Arc::clone(&self.reporter);
 
         if let Some(udp) = &self.udp {
             match udp.send(data) {
@@ -43,6 +38,10 @@ impl Handler{
                 return;
             }
         };
+
+        let id = self.id;
+        let dst_addr = payload.dst_addr();
+        let reporter = Arc::clone(&self.reporter);
 
         match udp.connect(dst_addr) {
             Ok(_) => {

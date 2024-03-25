@@ -1,4 +1,5 @@
 use std::net::{Ipv4Addr, SocketAddr};
+use std::sync::Arc;
 use crate::protocol::internet::icmp::Icmp;
 use crate::protocol::internet::tcp::{FlagsType, Tcp};
 use crate::protocol::internet::udp::Udp;
@@ -73,7 +74,7 @@ pub mod icmp;
 pub struct Datagram {
     pub header: Header,
     pub pseudo_header: PseudoHeader,
-    pub payload: Box<dyn Packet + Send + Sync>,
+    pub payload: Payload,
 }
 
 pub struct Header {
@@ -90,6 +91,8 @@ pub struct Header {
     // options: [u8],
     pub options: Vec<u8>,
 }
+
+pub type Payload = Arc<Box<dyn Packet + Send + Sync>>;
 
 /*
                           IPv4 Pseudo-header
@@ -146,7 +149,7 @@ impl Datagram {
                 options: bytes[20..(20 + options_len)].to_owned(),
             },
             pseudo_header,
-            payload,
+            payload: Arc::new(payload),
         }
     }
 
@@ -270,7 +273,7 @@ impl Datagram {
     }
 
     pub fn update_seq(&mut self, len: u32) {
-        self.payload.update_seq(0);
+        // self.payload.update_seq(0);
     }
 }
 
@@ -296,6 +299,7 @@ pub enum Protocol {
 }
 
 pub trait Packet {
+    fn protocol(&self) -> Protocol;
     fn dst_addr(&self) -> SocketAddr;
     fn dst_port(&self) -> u16 { 0 }
     fn payload(&self) -> &Vec<u8>;

@@ -3,7 +3,7 @@ use std::io::Write;
 use std::sync::{Arc, mpsc};
 
 use crate::logging::Logging;
-use crate::protocol::internet::Datagram;
+use crate::protocol::internet::{Datagram, Payload};
 use crate::thread_pool::event::Event;
 use crate::thread_pool::worker::Worker;
 
@@ -16,10 +16,9 @@ pub struct ThreadPool {}
 impl ThreadPool {
     pub fn new(size: usize, reporter: Reporter) -> Self {
         for i in 0..size {
-            let (tx, rx) = mpsc::channel();
             let reporter = Arc::clone(&reporter);
             unsafe {
-                WORKERS.push(Worker::new(i, reporter, tx, rx));
+                WORKERS.push(Worker::new(i, reporter));
             }
         }
 
@@ -31,33 +30,32 @@ impl ThreadPool {
 
     pub fn execute(datagram: Datagram, logging: &mut Logging) {
         let name = datagram.name();
-        let d0 = Arc::new(datagram);
-        let d1 = Arc::clone(&d0);
         unsafe {
             let mut index = 0;
+            let mut matched_index = WORKERS.len();
             for (i, worker) in WORKERS.iter().enumerate() {
                 if worker.name == name {
-                    match worker.sender.send(d0) {
-                        Ok(_) => {
-                            logging.d(format!("Success send task({i}->{})", worker.name));
-                        }
-                        Err(err) => {
-                            logging.d(format!("Failed send task({i}->{}), {:?}", worker.name, err.to_string()));
-                        }
-                    }
-                    WORKERS[i].name = name;
-                    WORKERS[i].datagram = Some(d1);
-                    return;
-                }
-
-                if worker.name == "" {
+                    matched_index = i;
+                    break;
+                } else if worker.name == "" {
                     index = i;
                 }
             }
 
-            WORKERS[index].sender.send(d0).unwrap();
-            WORKERS[index].name = name;
-            WORKERS[index].datagram = Some(d1);
+            let payload = Arc::clone(&datagram.payload);
+
+            let index = if matched_index != WORKERS.len() { matched_index } else { index };
+
+            WORKERS[index].name = name.to_string();
+            WORKERS[index].datagram = Some(datagram);
+
+            match WORKERS[index].sender.send(payload) {
+                Ok(_) => {
+                }
+                Err(err) => {
+                    logging.d(format!("Failed send task({index}->{}), {:?}", name, err.to_string()));
+                }
+            }
         }
     }
 
@@ -88,7 +86,6 @@ impl ThreadPool {
                         match stream.write_all(&pkt) {
                             Ok(()) => {
                                 // datagram.update_seq(pkt.len() as u32);
-                                logging.i("<<--- Respond: Write success\n".to_string());
                             }
                             Err(err) => {
                                 logging.i(format!("<<--- Respond: Write error: {:?}", err));
@@ -114,8 +111,13 @@ impl ThreadPool {
     // Stop all workers
     pub fn stop() {
         unsafe {
-            for i in 0..10usize {
-                WORKERS[i].stop();
+            loop {
+                match WORKERS.pop() {
+                    Some(worker) => {
+                        drop(worker);
+                    }
+                    None => { break; }
+                }
             }
             WORKERS.clear();
         }
@@ -126,5 +128,5 @@ static mut WORKERS: Vec<Worker> = Vec::new();
 
 type Message = Vec<u8>;
 type Reporter = Arc<mpsc::Sender<(usize, Event)>>;
-type Sender = mpsc::Sender<Arc<Datagram>>;
-type Receiver = mpsc::Receiver<Arc<Datagram>>;
+type Sender = mpsc::Sender<Payload>;
+type Receiver = mpsc::Receiver<Payload>;
