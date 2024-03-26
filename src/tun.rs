@@ -19,7 +19,7 @@ pub fn main(fd: c_int, log_path: *const c_char) {
     let c_str = unsafe { CStr::from_ptr(log_path) };
     let logging_path = c_str.to_string_lossy().into_owned();
     let mut logging = Logging::new(&logging_path);
-    logging.i(format!("Hello tun2socks main, fd({logging_path}), logging_path({logging_path})"));
+    logging.i(format!("Hello tun2socks main, fd({fd}), logging_path({logging_path})"));
 
     let (reporter, events) = mpsc::channel();
     let reporter = Arc::new(reporter);
@@ -35,11 +35,6 @@ pub fn main(fd: c_int, log_path: *const c_char) {
     let mut last_err = Error::new(ErrorKind::InvalidInput, "Oh no");
 
     loop {
-        if !isRunning() {
-            logging.i("tun2socks recv stop signal".to_string());
-            break;
-        }
-        
         match interface.read(&mut buf) {
             Ok(0) => {
                 logging.i("reach end".to_string());
@@ -90,20 +85,7 @@ pub fn main(fd: c_int, log_path: *const c_char) {
         }
     }
 
+    ThreadPool::stop();
     drop(interface);
     drop(reporter);
-
-    ThreadPool::stop()
 }
-
-pub fn stop() {
-    unsafe {
-        RUNNING = false;
-    }
-}
-
-pub fn isRunning() -> bool {
-    unsafe { RUNNING }
-}
-
-static mut RUNNING: bool = true;

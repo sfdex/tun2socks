@@ -49,7 +49,7 @@ impl Handler {
         state.report(self.id, &self.reporter);
     }
 
-    pub fn stop(mut self) {
+    pub fn stop(self) {
         if let Some(tcp) = self.tcp {
             match tcp.shutdown(Shutdown::Both) {
                 Ok(_) => {}
@@ -66,6 +66,8 @@ impl Handler {
             drop(job);
         }
 
+        let r = &self.reporter;
+        r.send((self.id, log!("Yes"))).unwrap_or(());
         drop(self.reporter);
     }
 }

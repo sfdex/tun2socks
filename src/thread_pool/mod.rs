@@ -6,7 +6,6 @@ use crate::logging::Logging;
 use crate::protocol::internet::{Datagram, Payload};
 use crate::thread_pool::event::Event;
 use crate::thread_pool::worker::Worker;
-use crate::tun::isRunning;
 
 mod worker;
 pub mod event;
@@ -64,7 +63,6 @@ impl ThreadPool {
         for worker_state in events {
             let index = worker_state.0;
             let event = worker_state.1;
-            if !isRunning() { break; };
             let name = unsafe { &WORKERS[index].name };
 
             match event {
@@ -96,7 +94,6 @@ impl ThreadPool {
                     }
                 }
                 Event::LOG(log) => {
-                    println!("{index} LOG: {:?}", log);
                     logging.i(format!("{index}=>{}: {log}", name));
                 }
                 _ => {
@@ -106,8 +103,6 @@ impl ThreadPool {
                 }
             }
         }
-
-        logging.i("<<--- tun2socks ended --->>".to_string());
     }
 
     // Stop all workers
