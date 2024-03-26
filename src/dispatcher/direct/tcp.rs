@@ -62,8 +62,8 @@ impl Handler {
         self.tcp = Some(stream);
 
         // Receive message
+        let mut buf = vec![0; 1500];
         let job = thread::spawn(move || {
-            let mut buf = vec![0; 1500];
             log!("tcp loop start").report(id, &reporter);
             loop {
                 match stream_cloned.read(&mut buf) {

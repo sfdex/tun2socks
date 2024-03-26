@@ -4,7 +4,7 @@ use std::io::{Error, ErrorKind, Read};
 use std::os::fd::{AsRawFd, FromRawFd, RawFd};
 use std::os::raw::c_int;
 use std::sync::{Arc, mpsc};
-use std::{fs, thread};
+use std::thread;
 
 use crate::logging::Logging;
 use crate::protocol::internet::Datagram;
@@ -22,7 +22,8 @@ pub fn main(fd: c_int, log_path: *const c_char) {
     logging.i(format!("Hello tun2socks main, fd({logging_path}), logging_path({logging_path})"));
 
     let (reporter, events) = mpsc::channel();
-    let pool = ThreadPool::new(10, Arc::new(reporter));
+    let reporter = Arc::new(reporter);
+    let pool = ThreadPool::new(10, Arc::clone(&reporter));
 
     let mut cloned_interface = interface.try_clone().unwrap();
     let mut cloned_logging = logging.clone();
@@ -38,7 +39,7 @@ pub fn main(fd: c_int, log_path: *const c_char) {
             logging.i("tun2socks recv stop signal".to_string());
             break;
         }
-
+        
         match interface.read(&mut buf) {
             Ok(0) => {
                 logging.i("reach end".to_string());
@@ -88,6 +89,9 @@ pub fn main(fd: c_int, log_path: *const c_char) {
             }
         }
     }
+
+    drop(interface);
+    drop(reporter);
 
     ThreadPool::stop()
 }

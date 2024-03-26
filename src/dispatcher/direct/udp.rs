@@ -1,6 +1,7 @@
 use std::net::UdpSocket;
 use std::sync::Arc;
 use std::thread;
+
 use crate::log;
 use crate::thread_pool::event::Event::{IDLE, MESSAGE};
 use crate::thread_pool::handler::Handler;
@@ -67,10 +68,11 @@ impl Handler {
         let udp_cloned = udp.try_clone().unwrap();
         self.udp = Some(udp);
 
+        // Receive message
+        let mut buf = vec![0; 1500];
         let job = thread::spawn(move || {
             loop {
-                let mut buf = vec![0; 1500];
-                log!("udp recv start").report(id, &reporter);
+                log!("udp loop start").report(id, &reporter);
 
                 match udp_cloned.recv(&mut buf) {
                     Ok(n) => {

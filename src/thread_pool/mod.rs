@@ -6,6 +6,7 @@ use crate::logging::Logging;
 use crate::protocol::internet::{Datagram, Payload};
 use crate::thread_pool::event::Event;
 use crate::thread_pool::worker::Worker;
+use crate::tun::isRunning;
 
 mod worker;
 pub mod event;
@@ -63,6 +64,7 @@ impl ThreadPool {
         for worker_state in events {
             let index = worker_state.0;
             let event = worker_state.1;
+            if !isRunning() { break; };
             let name = unsafe { &WORKERS[index].name };
 
             match event {
@@ -80,8 +82,8 @@ impl ThreadPool {
                         let pkt = datagram.resp_pack(&payload);
                         logging.i(format!("<<--- Respond: len({})\n{:?}", pkt.len(), pkt));
 
-                        let new_dg = Datagram::new(&pkt);
-                        logging.i(new_dg.payload.info());
+                        // let new_dg = Datagram::new(&pkt);
+                        // logging.i(new_dg.payload.info());
 
                         match stream.write_all(&pkt) {
                             Ok(()) => {

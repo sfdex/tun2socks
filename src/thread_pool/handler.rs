@@ -51,7 +51,6 @@ impl Handler {
 
     pub fn stop(mut self) {
         if let Some(tcp) = self.tcp {
-            let err = tcp.take_error();
             match tcp.shutdown(Shutdown::Both) {
                 Ok(_) => {}
                 Err(err) => {
@@ -60,7 +59,6 @@ impl Handler {
             }
             drop(tcp);
         } else if let Some(udp) = self.udp {
-            let err = udp.take_error();
             drop(udp);
         }
 

@@ -5,7 +5,6 @@ use crate::protocol::internet::Datagram;
 use crate::thread_pool::{Reporter, Sender};
 use crate::thread_pool::event::Event;
 use crate::thread_pool::handler::Handler;
-use crate::tun::isRunning;
 
 pub struct Worker {
     pub name: String,
@@ -19,15 +18,14 @@ impl Worker {
     pub fn new(id: usize, reporter: Reporter) -> Self {
         let mut handler = Handler::new(id, reporter);
         let (tx, rx) = mpsc::channel();
-        let thread = thread::spawn(move || {
-            for payload in rx {
-                if !isRunning() {
-                    handler.stop();
-                    break;
+        let thread = thread::Builder::new()
+            .name(format!("worker{id}"))
+            .spawn(move || {
+                for payload in rx {
+                    handler.handle(payload);
                 }
-                handler.handle(payload);
-            }
-        });
+                handler.stop();
+            }).unwrap();
 
         Self {
             name: "".to_string(),
