@@ -53,7 +53,7 @@ impl ThreadPool {
                 Ok(_) => {
                 }
                 Err(err) => {
-                    logging.d(format!("Failed send task({index}->{}), {:?}", name, err.to_string()));
+                    logging.d(format!("Failed send task({index}-{}), {:?}", name, err.to_string()));
                 }
             }
         }

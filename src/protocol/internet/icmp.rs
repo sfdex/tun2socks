@@ -41,10 +41,7 @@ impl Packet for Icmp {
     fn protocol(&self) -> Protocol {
         Protocol::ICMP
     }
-
-    fn dst_addr(&self) -> SocketAddr {
-        SocketAddr::new([0, 0, 0, 0].into(), 0)
-    }
+   
     fn payload(&self) -> &Vec<u8> {
         &self.payload
     }

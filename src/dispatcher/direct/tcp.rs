@@ -17,11 +17,9 @@ impl Handler {
         } else {
             return;
         };
-
-        self.report(log!("{}", payload.info()));
-
         let data = payload.payload();
-        let dst_addr = payload.dst_addr();
+        self.report(log!("{}", payload.info()));
+        
         if let Some(stream) = &mut self.tcp {
             match stream.write_all(data) {
                 Ok(_) => {
@@ -38,6 +36,7 @@ impl Handler {
         }
 
         // Connect
+        let dst_addr = payload.dst_addr();
         self.report(log!("connect to {addr}", addr = dst_addr));
         let stream = match TcpStream::connect_timeout(&dst_addr, Duration::from_secs(5)) {
             Ok(stream) => {

@@ -109,14 +109,14 @@ impl Packet for Tcp {
         Protocol::TCP
     }
 
+    fn src_addr(&self) -> SocketAddr {
+        SocketAddr::new(self.pseudo_header.src_ip.into(), bytes_to_u32(&self.header.src_port) as u16)
+    }
+    
     fn dst_addr(&self) -> SocketAddr {
         SocketAddr::new(self.pseudo_header.dst_ip.into(), bytes_to_u32(&self.header.dst_port) as u16)
     }
-
-    fn dst_port(&self) -> u16 {
-        bytes_to_u32(&self.header.dst_port) as u16
-    }
-
+    
     fn payload(&self) -> &Vec<u8> {
         &self.payload
     }

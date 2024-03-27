@@ -12,6 +12,7 @@ use crate::util::{bytes_to_u32, bytes_to_u32_no_prefix};
 
 pub mod simulator;
 pub mod direct;
+pub mod socks5;
 
 pub fn handle_datagram(datagram: &[u8], stream: &mut File, logging: &mut Logging) {
     logging.i(format!("--->> Recv: len({}), {:?}", (&datagram).len(), &datagram));

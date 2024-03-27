@@ -267,9 +267,9 @@ impl Datagram {
 
     pub fn name(&self) -> String {
         let protocol = self.protocol();
-        let ip = Ipv4Addr::from(self.header.dst_ip);
-        let port = self.payload.dst_port();
-        format!("{:?}[{}]:{}", protocol, ip, port)
+        let src_addr = self.payload.src_addr();
+        let dst_addr = self.payload.dst_addr();
+        format!("{:?}[{}]=>[{}]", protocol, src_addr, dst_addr)
     }
 
     pub fn update_seq(&mut self, len: u32) {
@@ -300,8 +300,8 @@ pub enum Protocol {
 
 pub trait Packet {
     fn protocol(&self) -> Protocol;
-    fn dst_addr(&self) -> SocketAddr;
-    fn dst_port(&self) -> u16 { 0 }
+    fn src_addr(&self) -> SocketAddr { SocketAddr::new([0, 0, 0, 0].into(), 0) }
+    fn dst_addr(&self) -> SocketAddr { SocketAddr::new([0, 0, 0, 0].into(), 0) }
     fn payload(&self) -> &Vec<u8>;
     fn flags_type(&self) -> FlagsType { return FlagsType(0); }
     fn info(&self) -> String;
