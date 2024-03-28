@@ -4,14 +4,14 @@ method to be used, authenticates with the chosen method, then sends a relay requ
 
 The client connects to the server, and sends a version identifier/method selection message
  */
-struct Request {
+pub struct Request {
     ver: u8,
     nmethods: u8,
     methods: Vec<u8>,
 }
 
 impl Request {
-    fn new(methods: &[u8]) -> Self {
+    pub fn new(methods: &[u8]) -> Self {
         Request {
             ver: 5,
             nmethods: methods.len() as u8,
@@ -19,7 +19,7 @@ impl Request {
         }
     }
 
-    fn as_bytes(&self) -> Vec<u8> {
+    pub fn as_bytes(&self) -> Vec<u8> {
         let mut bytes = Vec::new();
         bytes.push(self.ver);
         bytes.push(self.nmethods);

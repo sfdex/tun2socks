@@ -7,6 +7,8 @@ use crate::protocol::internet::{Datagram, Payload};
 use crate::thread_pool::event::Event;
 use crate::thread_pool::worker::Worker;
 
+mod job;
+mod router;
 mod worker;
 pub mod event;
 pub mod handler;
@@ -124,6 +126,6 @@ impl ThreadPool {
 static mut WORKERS: Vec<Worker> = Vec::new();
 
 type Message = Vec<u8>;
-type Reporter = Arc<mpsc::Sender<(usize, Event)>>;
+pub type Reporter = Arc<mpsc::Sender<(usize, Event)>>;
 type Sender = mpsc::Sender<Payload>;
 type Receiver = mpsc::Receiver<Payload>;
