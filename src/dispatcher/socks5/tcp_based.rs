@@ -1,12 +1,11 @@
-use std::io::{Read, Write, Result, Error, ErrorKind};
-use std::net::{SocketAddr, TcpStream};
-use std::str::FromStr;
+use std::io::{Error, ErrorKind, Read, Result, Write};
+use std::net::{Shutdown, SocketAddr, TcpStream};
 use std::sync::Arc;
 use std::thread;
 use std::thread::JoinHandle;
 use std::time::Duration;
-use crate::protocol::internet::tcp::PSH_ACK;
 
+use crate::protocol::internet::tcp::PSH_ACK;
 use crate::protocol::socks5::*;
 use crate::thread_pool::event::Event::MESSAGE;
 use crate::thread_pool::Reporter;
@@ -24,9 +23,9 @@ pub struct Client {
 }
 
 impl Client {
-    pub fn new(server_addr: String, dst_addr: &[u8], dst_port: [u8; 2], reporter: Reporter) -> Self {
+    pub fn new(server_addr: SocketAddr, dst_addr: &[u8], dst_port: [u8; 2], reporter: Reporter) -> Self {
         Client {
-            server_addr: SocketAddr::from_str(&server_addr).unwrap(),
+            server_addr,
             reporter,
             dst_addr: dst_addr.to_vec(),
             dst_port,
@@ -161,5 +160,16 @@ impl Client {
         }));
 
         return Ok(());
+    }
+
+    pub fn stop(self) {
+        if let Some(stream) = self.stream {
+            stream.shutdown(Shutdown::Both).unwrap_or(());
+            drop(stream);
+        }
+        if let Some(job) = self.job {
+            drop(job);
+        }
+        drop(self.reporter);
     }
 }
